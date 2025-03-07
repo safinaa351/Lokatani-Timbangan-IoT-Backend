@@ -1,0 +1,13 @@
+# Virtual env & dependencies
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Credential files
+*.json
+
+# Ignore Docker build cache
+*.log
+.DS_Store
+.env

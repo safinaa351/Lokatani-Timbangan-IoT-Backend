@@ -1,0 +1,23 @@
+steps:
+  # 1️⃣ Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'asia-southeast2-docker.pkg.dev/$PROJECT_ID/flask-backend-repo/flask-backend:latest', '.']
+
+  # 2️⃣ Push ke Artifact Registry (GCR)
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'asia-southeast2-docker.pkg.dev/$PROJECT_ID/flask-backend-repo/flask-backend:latest']
+
+  # 3️⃣ Deploy ke Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'flask-backend'
+      - '--image=asia-southeast2-docker.pkg.dev/$PROJECT_ID/flask-backend-repo/flask-backend:latest'
+      - '--platform=managed'
+      - '--region=asia-southeast2'
+      - '--allow-unauthenticated'
+
+images:
+  - 'asia-southeast2-docker.pkg.dev/$PROJECT_ID/flask-backend-repo/flask-backend:latest'
