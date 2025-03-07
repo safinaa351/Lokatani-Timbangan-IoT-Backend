@@ -1,9 +1,10 @@
 from google.cloud import storage, firestore
 import os
 from datetime import datetime
+import uuid
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-#os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(BASE_DIR, "cloud-storage-key.json")
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(BASE_DIR, "cloud-storage-key.json")
 
 BUCKET_NAME = "img-sayur-lokatani"
 storage_client = storage.Client()
@@ -23,8 +24,10 @@ def upload_image(file, filename):
 
 def save_weight(sayur_name, weight, image_url):
     """Simpan berat sayur ke Firestore."""
+    sayur_id = str(uuid.uuid4())  # Generate ID unik
     doc_ref = firestore_client.collection(COLLECTION_NAME).document(sayur_name)
     doc_ref.set({
+        "id": sayur_id,
         "name": sayur_name,
         "weight": weight,
         "image_url": image_url,
@@ -33,6 +36,7 @@ def save_weight(sayur_name, weight, image_url):
 
     return {
         "message": "Data berhasil disimpan",
+        "id": sayur_id,
         "name": sayur_name,
         "weight": weight,
         "image_url": image_url,
