@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(BASE_DIR, "cloud-storage-key.json")
+#os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(BASE_DIR, "cloud-storage-key.json")
 
 BUCKET_NAME = "img-sayur-lokatani"
 storage_client = storage.Client()
