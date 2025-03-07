@@ -10,8 +10,11 @@ COPY . .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port Flask (sesuai dengan yang ada di `main.py`)
+# Set PYTHONPATH agar Python bisa menemukan module `app`
+ENV PYTHONPATH=/app
+
+# Expose port Flask
 EXPOSE 8080
 
 # Jalankan Flask app
-CMD ["python", "app/main.py"]
+CMD ["python", "main.py"]

@@ -3,6 +3,10 @@ from app.services.service import upload_image, save_weight
 
 routes = Blueprint('routes', __name__)
 
+@routes.route('/')
+def home():
+    return "Docker build berhasil!"
+
 @routes.route('/upload_with_weight', methods=['POST'])
 def upload_with_weight():
     """API untuk upload gambar & simpan berat sayur ke Firestore."""
