@@ -25,7 +25,7 @@ def upload_image(file, filename):
 def save_weight(sayur_name, weight, image_url):
     """Simpan berat sayur ke Firestore."""
     sayur_id = str(uuid.uuid4())  # Generate ID unik
-    doc_ref = firestore_client.collection(COLLECTION_NAME).document(sayur_name)
+    doc_ref = firestore_client.collection(COLLECTION_NAME).document(sayur_id)
     doc_ref.set({
         "id": sayur_id,
         "name": sayur_name,
