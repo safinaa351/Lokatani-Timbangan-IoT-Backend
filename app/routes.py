@@ -1,7 +1,15 @@
 from flask import Blueprint, request, jsonify
+import imghdr
 from app.services.service import upload_image, save_weight
 
 routes = Blueprint('routes', __name__)
+
+# Allowed image extensions
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg"}
+
+def allowed_file(filename):
+    """Cek apakah file memiliki ekstensi gambar yang valid"""
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @routes.route('/')
 def home():
@@ -17,6 +25,15 @@ def upload_with_weight():
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
 
+    # Cek ekstensi file
+    if not allowed_file(file.filename):
+        return jsonify({"error": "Invalid file type. Only PNG, JPG, and JPEG are allowed."}), 400
+
+    # Cek MIME type agar hanya file gambar yang bisa di-upload
+    file_type = imghdr.what(file)
+    if file_type not in ALLOWED_EXTENSIONS:
+        return jsonify({"error": "Invalid file content. Only images are allowed."}), 400
+
     sayur_name = request.form.get("name")
     weight = request.form.get("weight")
 
@@ -30,7 +47,6 @@ def upload_with_weight():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-'''
 @routes.route('/upload', methods=['POST'])
 def upload_file():
     """API untuk upload gambar ke Cloud Storage."""
@@ -41,22 +57,17 @@ def upload_file():
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
 
+    # Cek ekstensi file
+    if not allowed_file(file.filename):
+        return jsonify({"error": "Invalid file type. Only PNG, JPG, and JPEG are allowed."}), 400
+
+    # Cek MIME type
+    file_type = imghdr.what(file)
+    if file_type not in ALLOWED_EXTENSIONS:
+        return jsonify({"error": "Invalid file content. Only images are allowed."}), 400
+
     try:
         file_url = upload_image(file, file.filename)
         return jsonify({"message": "Upload berhasil", "url": file_url}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
-@routes.route('/add_weight', methods=['POST'])
-def add_weight():
-    """API untuk menyimpan berat sayur ke Firestore."""
-    data = request.get_json()
-    if not data or "name" not in data or "weight" not in data:
-        return jsonify({"error": "Request harus berisi 'name' dan 'weight'"}), 400
-
-    try:
-        result = save_weight(data["name"], data["weight"])
-        return jsonify(result), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500'
-'''
