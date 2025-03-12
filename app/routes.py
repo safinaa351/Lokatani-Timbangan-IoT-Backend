@@ -13,7 +13,7 @@ def allowed_file(filename):
 
 @routes.route('/')
 def home():
-    return "Docker build berhasil!"
+    return "Tes modifikasi"
 
 @routes.route('/upload_with_weight', methods=['POST'])
 def upload_with_weight():
