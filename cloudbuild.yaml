@@ -1,34 +1,23 @@
 steps:
-  # 1️⃣ Authenticate with Artifact Registry
+  # 1️⃣ Build Docker image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['login', '-u', 'oauth2accesstoken', '-p', '$(gcloud auth print-access-token)', 'asia-southeast2-docker.pkg.dev']
+    args: ['build', '-t', 'asia-southeast2-docker.pkg.dev/$PROJECT_ID/flask-backend-repo/flask-backend:latest', '.']
 
-  # 2️⃣ Build Docker image
-  - name: 'gcr.io/cloud-builders/docker'
-    args: [
-      'build', '-t', 'asia-southeast2-docker.pkg.dev/$PROJECT_ID/flask-backend-repo/flask-backend:$SHORT_SHA',
-      '-t', 'asia-southeast2-docker.pkg.dev/$PROJECT_ID/flask-backend-repo/flask-backend:latest',
-      '.'
-    ]
-
-  # 3️⃣ Push images to Artifact Registry
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'asia-southeast2-docker.pkg.dev/$PROJECT_ID/flask-backend-repo/flask-backend:$SHORT_SHA']
-    
+  # 2️⃣ Push ke Artifact Registry (GCR)
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'asia-southeast2-docker.pkg.dev/$PROJECT_ID/flask-backend-repo/flask-backend:latest']
 
-  # 4️⃣ Deploy to Cloud Run
-  - name: 'gcr.io/cloud-builders/gcloud'
+  # 3️⃣ Deploy ke Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
       - 'flask-backend'
-      - '--image=asia-southeast2-docker.pkg.dev/$PROJECT_ID/flask-backend-repo/flask-backend:$SHORT_SHA'
+      - '--image=asia-southeast2-docker.pkg.dev/$PROJECT_ID/flask-backend-repo/flask-backend:latest'
       - '--platform=managed'
       - '--region=asia-southeast2'
       - '--allow-unauthenticated'
 
 images:
-  - 'asia-southeast2-docker.pkg.dev/$PROJECT_ID/flask-backend-repo/flask-backend:$SHORT_SHA'
   - 'asia-southeast2-docker.pkg.dev/$PROJECT_ID/flask-backend-repo/flask-backend:latest'
