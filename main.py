@@ -1,4 +1,6 @@
 from app import create_app
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env
 
 app = create_app()  # Panggil fungsi create_app() dari __init__.py
 
