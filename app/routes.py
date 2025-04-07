@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify
-import imghdr
+from werkzeug.utils import secure_filename
+from PIL import Image
 import logging
 from app.services.service import (
-    upload_image, 
-    save_weight, 
+    upload_image,
     initiate_batch, 
     complete_batch, 
     detect_weight, 
@@ -11,18 +11,34 @@ from app.services.service import (
     identify_vegetable
 )
 
-# Configure logging
+routes = Blueprint('routes', __name__)
+
+# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-routes = Blueprint('routes', __name__)
 
 # Allowed image extensions
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg"}
 
 def allowed_file(filename):
-    """Cek apakah file memiliki ekstensi gambar yang valid"""
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def is_image(file):
+    try:
+        Image.open(file).verify()
+        file.seek(0)
+        return True
+    except Exception:
+        return False
+    
+def validate_uploaded_file(file):
+    if file.filename == '':
+        return "No selected file"
+    if not allowed_file(file.filename):
+        return "Invalid file extension"
+    if not is_image(file):
+        return "Invalid image file"
+    return None
 
 @routes.route('/')
 def home():
@@ -32,16 +48,6 @@ def home():
 
 @routes.route('/api/weight/detection', methods=['POST'])
 def handle_weight_detection():
-    """
-    Handle initial weight detection from IoT scale
-    
-    Expected JSON payload:
-    {
-        "scale_id": "unique_scale_identifier",
-        "current_weight": float,
-        "unit": "grams"
-    }
-    """
     try:
         data = request.json
         logger.info(f"Weight detection received: {data}")
@@ -63,16 +69,6 @@ def handle_weight_detection():
 
 @routes.route('/api/weight/stabilized', methods=['POST'])
 def handle_weight_stabilization():
-    """
-    Handle stabilized weight from IoT scale
-    
-    Expected JSON payload:
-    {
-        "batch_id": "unique_batch_identifier",
-        "stabilized_weight": float,
-        "scale_id": "unique_scale_identifier"
-    }
-    """
     try:
         data = request.json
         logger.info(f"Stabilized weight received: {data}")
@@ -94,15 +90,6 @@ def handle_weight_stabilization():
 
 @routes.route('/api/batch/initiate', methods=['POST'])
 def initiate_batch_tracking():
-    """
-    Initiate a new batch tracking session
-    
-    Expected JSON payload:
-    {
-        "user_id": "unique_user_identifier",
-        "scale_id": "unique_scale_identifier"
-    }
-    """
     try:
         data = request.json
         logger.info(f"Batch initiation request: {data}")
@@ -124,16 +111,6 @@ def initiate_batch_tracking():
 
 @routes.route('/api/batch/complete', methods=['POST'])
 def finalize_batch_tracking():
-    """
-    Complete and finalize a batch tracking session
-    
-    Expected JSON payload:
-    {
-        "batch_id": "unique_batch_identifier",
-        "total_weight": float,
-        "vegetable_type": "string"
-    }
-    """
     try:
         data = request.json
         logger.info(f"Batch completion request: {data}")
@@ -155,13 +132,6 @@ def finalize_batch_tracking():
 
 @routes.route('/api/ml/identify-vegetable', methods=['POST'])
 def process_vegetable_identification():
-    """
-    Process vegetable identification from uploaded image
-    
-    Expects multipart form-data with:
-    - file: Image file
-    - batch_id: Optional batch identifier
-    """
     if 'file' not in request.files:
         logger.warning("No file part in the request")
         return jsonify({"error": "No file part"}), 400
@@ -169,42 +139,19 @@ def process_vegetable_identification():
     file = request.files['file']
     batch_id = request.form.get('batch_id')
 
-    if file.filename == '':
-        logger.warning("No selected file")
-        return jsonify({"error": "No selected file"}), 400
-
-    # Validate file type
-    if not allowed_file(file.filename):
-        logger.warning(f"Invalid file type: {file.filename}")
-        return jsonify({"error": "Invalid file type"}), 400
-
-    # Additional MIME type check
-    file_type = imghdr.what(file)
-    if file_type not in ALLOWED_EXTENSIONS:
-        logger.warning(f"Invalid file content: {file_type}")
-        return jsonify({"error": "Invalid file content"}), 400
+    error = validate_uploaded_file(file)
+    if error:
+        logger.warning(f"File validation failed: {error}")
+        return jsonify({"error": error}), 400
 
     try:
-        # Upload image and process identification
-        image_url = upload_image(file, file.filename)
+        safe_filename = secure_filename(file.filename)
+        image_url = upload_image(file, safe_filename)
         identification_result = identify_vegetable(image_url, batch_id)
-        
+
         logger.info(f"Vegetable identification result: {identification_result}")
         return jsonify(identification_result), 200
-    
+
     except Exception as e:
         logger.error(f"Error in vegetable identification: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
-# Deprecated endpoints (kept for backwards compatibility)
-@routes.route('/upload', methods=['POST'])
-def legacy_upload_file():
-    """Legacy image upload endpoint - will be deprecated"""
-    logger.warning("Using deprecated upload endpoint")
-    return process_vegetable_identification()
-
-@routes.route('/upload_with_weight', methods=['POST'])
-def legacy_upload_with_weight():
-    """Legacy upload with weight endpoint - will be deprecated"""
-    logger.warning("Using deprecated upload with weight endpoint")
-    return process_vegetable_identification()

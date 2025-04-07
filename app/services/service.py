@@ -1,45 +1,35 @@
 from google.cloud import storage, firestore
+from dotenv import load_dotenv
 import os
 import uuid
 from datetime import datetime
 import logging
 import requests  # For ML service interaction
 
+# Load environment variables
+load_dotenv()
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Cloud Configuration
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(BASE_DIR, "cloud-storage-key.json")
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
+ML_SERVICE_URL = os.getenv("ML_SERVICE_URL")
 
-BUCKET_NAME = "img-sayur-lokatani"
 storage_client = storage.Client()
 firestore_client = firestore.Client()
 
-# Collection Names
+# Firestore Collection
 BATCH_COLLECTION = "vegetable_batches"
 WEIGHTS_SUBCOLLECTION = "weights"
 
-# ML Service Configuration (placeholder - replace with actual endpoint)
-ML_SERVICE_URL = "https://your-ml-service-endpoint.com/identify"
-
 def upload_image(file, filename):
-    """
-    Upload file to Google Cloud Storage and return URL.
-    
-    Args:
-        file: File object to upload
-        filename: Name of the file
-    
-    Returns:
-        str: Public URL of uploaded image
-    """
     try:
         bucket = storage_client.bucket(BUCKET_NAME)
         blob = bucket.blob(filename)
         blob.upload_from_string(file.read(), content_type=file.content_type)
-        
         image_url = f"https://storage.googleapis.com/{BUCKET_NAME}/{filename}"
         logger.info(f"Image uploaded successfully: {image_url}")
         return image_url
@@ -48,15 +38,6 @@ def upload_image(file, filename):
         raise
 
 def detect_weight(weight_data):
-    """
-    Process initial weight detection from IoT scale.
-    
-    Args:
-        weight_data (dict): Weight detection payload
-    
-    Returns:
-        dict: Processed weight detection result
-    """
     try:
         # Basic validation
         if weight_data.get('current_weight', 0) <= 0:
@@ -108,24 +89,15 @@ def stabilize_weight(weight_data):
         raise
 
 def initiate_batch(batch_data):
-    """
-    Initiate a new batch tracking session.
-    
-    Args:
-        batch_data (dict): Batch initiation payload
-    
-    Returns:
-        dict: Batch initiation details
-    """
     try:
-        # Generate unique batch ID
         batch_id = str(uuid.uuid4())
-        
-        # Create batch document
+        user_id = batch_data.get('user_id')
+        scale_id = batch_data.get('scale_id')
+
         batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
         batch_ref.set({
-            "user_id": batch_data.get('user_id'),
-            "scale_id": batch_data.get('scale_id'),
+            "user_id": user_id,
+            "scale_id": scale_id,
             "status": "in_progress",
             "created_at": datetime.utcnow(),
             "total_weight": 0
@@ -142,15 +114,6 @@ def initiate_batch(batch_data):
         raise
 
 def complete_batch(batch_data):
-    """
-    Complete and finalize a batch tracking session
-    
-    Args:
-        batch_data (dict): Batch completion payload
-    
-    Returns:
-        dict: Batch completion result
-    """
     try:
         batch_id = batch_data.get('batch_id')
         vegetable_type = batch_data.get('vegetable_type')
@@ -183,16 +146,6 @@ def complete_batch(batch_data):
         raise
 
 def identify_vegetable(image_url, batch_id=None):
-    """
-    Process vegetable identification via ML service.
-    
-    Args:
-        image_url (str): URL of uploaded image
-        batch_id (str, optional): Associated batch ID
-    
-    Returns:
-        dict: Vegetable identification result
-    """
     try:
         # Call ML service (replace with actual ML service integration)
         response = requests.post(ML_SERVICE_URL, json={
@@ -210,8 +163,10 @@ def identify_vegetable(image_url, batch_id=None):
         if batch_id:
             batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
             batch_ref.update({
+                "ml_identification": {
                 "vegetable_type": result.get('vegetable_type'),
                 "confidence": result.get('confidence', 0)
+                }
             })
         
         logger.info(f"Vegetable identified: {result.get('vegetable_type')}")
@@ -219,26 +174,3 @@ def identify_vegetable(image_url, batch_id=None):
     except Exception as e:
         logger.error(f"Vegetable identification error: {str(e)}")
         raise
-
-# Legacy functions (kept for backwards compatibility)
-def save_weight(sayur_name, weight, image_url):
-    """
-    Deprecated: Use batch tracking methods instead
-    """
-    logger.warning("Using deprecated save_weight method")
-    batch_id = initiate_batch({"user_id": "legacy_user"})['batch_id']
-    stabilize_weight({
-        "batch_id": batch_id,
-        "stabilized_weight": weight
-    })
-    complete_batch({
-        "batch_id": batch_id,
-        "total_weight": weight,
-        "vegetable_type": sayur_name
-    })
-    return {
-        "message": "Legacy weight saving completed",
-        "batch_id": batch_id,
-        "name": sayur_name,
-        "weight": weight
-    }
