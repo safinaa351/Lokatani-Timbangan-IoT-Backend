@@ -58,7 +58,6 @@ def stabilize_weight(weight_data):
     try:
         batch_id = weight_data.get('batch_id')
         stabilized_weight = weight_data.get('stabilized_weight')
-        scale_id = weight_data.get('scale_id')
         
         # Reference to batch document
         batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
@@ -68,7 +67,6 @@ def stabilize_weight(weight_data):
         weight_entry = {
             "weight": stabilized_weight,
             "timestamp": datetime.utcnow(),
-            "scale_id": scale_id
         }
         
         # Add to weights subcollection
@@ -92,12 +90,10 @@ def initiate_batch(batch_data):
     try:
         batch_id = str(uuid.uuid4())
         user_id = batch_data.get('user_id')
-        scale_id = batch_data.get('scale_id')
 
         batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
         batch_ref.set({
             "user_id": user_id,
-            "scale_id": scale_id,
             "status": "in_progress",
             "created_at": datetime.utcnow(),
             "total_weight": 0
@@ -116,30 +112,39 @@ def initiate_batch(batch_data):
 def complete_batch(batch_data):
     try:
         batch_id = batch_data.get('batch_id')
-        vegetable_type = batch_data.get('vegetable_type')
+        if not batch_id:
+            raise ValueError("batch_id is required.")
         
         # Reference to batch document
         batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
+        batch_doc = batch_ref.get()
+        if not batch_doc.exists:
+            raise ValueError(f"Batch with ID {batch_id} does not exist.")
         
+        # Get full batch info after update
+        batch_info = batch_ref.get().to_dict()
+        vegetable_type = batch_info.get("vegetable_type")  # From ML mock
+
         # Prepare update payload
         update_payload = {
             "status": "completed",
             "completed_at": datetime.utcnow()
         }
         
-        # Only add vegetable_type if provided
-        if vegetable_type:
-            update_payload["vegetable_type"] = vegetable_type
-        
         # Update batch document
         batch_ref.update(update_payload)
         
         logger.info(f"Batch completed: {batch_id}")
         return {
-            "status": "completed",
             "batch_id": batch_id,
-            "message": "Batch tracking finished",
-            "vegetable_type": vegetable_type
+            "user_id": batch_info.get("user_id"),
+            "status": "completed",
+            "created_at": batch_info.get("created_at"),
+            "completed_at": update_payload["completed_at"],
+            "vegetable_type": vegetable_type,
+            "total_weight": batch_info.get("total_weight"),
+            "confidence": batch_info.get("confidence"),
+            "image_url": batch_info.get("image_url")
         }
     except Exception as e:
         logger.error(f"Batch completion error: {str(e)}")
@@ -147,7 +152,15 @@ def complete_batch(batch_data):
 
 def identify_vegetable(image_url, batch_id=None):
     try:
-        # Call ML service (replace with actual ML service integration)
+         # MOCKED RESPONSE
+        result = {
+            "vegetable_type": "bayam merah riil",
+            "confidence": 0.90,
+            "image_url": image_url,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+        '''# Call ML service (replace with actual ML service integration)
         response = requests.post(ML_SERVICE_URL, json={
             "image_url": image_url,
             "batch_id": batch_id
@@ -157,16 +170,15 @@ def identify_vegetable(image_url, batch_id=None):
             logger.warning(f"ML service error: {response.text}")
             return {"status": "error", "message": "Identification failed"}
         
-        result = response.json()
+        result = response.json()'''
         
         # Save identification to Firestore if batch_id provided
         if batch_id:
             batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
             batch_ref.update({
-                "ml_identification": {
                 "vegetable_type": result.get('vegetable_type'),
-                "confidence": result.get('confidence', 0)
-                }
+                "confidence": result.get('confidence', 0),
+                "image_url": result.get('image_url')
             })
         
         logger.info(f"Vegetable identified: {result.get('vegetable_type')}")
