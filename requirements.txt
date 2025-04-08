@@ -1,4 +1,13 @@
-flask
-gunicorn
-google-cloud-storage
-google-cloud-firestore
+flask==2.3.3
+google-cloud-storage==2.13.0
+google-cloud-firestore==2.13.1
+numpy==1.24.3
+opencv-python-headless==4.8.1.78
+ultralytics==8.0.196
+torch==2.1.0+cpu
+torchvision==0.16.0+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
+Pillow==10.1.0
+gunicorn==21.2.0
+requests==2.31.0
+python-dotenv==1.0.0

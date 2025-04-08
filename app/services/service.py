@@ -2,9 +2,12 @@ from google.cloud import storage, firestore
 from dotenv import load_dotenv
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import requests  # For ML service interaction
+import cv2
+import numpy as np
+from ultralytics import YOLO
 
 # Load environment variables
 load_dotenv()
@@ -25,12 +28,20 @@ firestore_client = firestore.Client()
 BATCH_COLLECTION = "vegetable_batches"
 WEIGHTS_SUBCOLLECTION = "weights"
 
+# Initialize YOLOv8 model
+model = YOLO('yolov8s.pt')
+
 def upload_image(file, filename):
     try:
         bucket = storage_client.bucket(BUCKET_NAME)
         blob = bucket.blob(filename)
         blob.upload_from_string(file.read(), content_type=file.content_type)
-        image_url = f"https://storage.googleapis.com/{BUCKET_NAME}/{filename}"
+        # Generate signed URL yang bisa diakses temporary
+        image_url = blob.generate_signed_url(
+            version="v4",
+            expiration=timedelta(minutes=15),
+            method="GET"
+        )
         logger.info(f"Image uploaded successfully: {image_url}")
         return image_url
     except Exception as e:
@@ -150,39 +161,53 @@ def complete_batch(batch_data):
         logger.error(f"Batch completion error: {str(e)}")
         raise
 
-def identify_vegetable(image_url, batch_id=None):
-    try:
-         # MOCKED RESPONSE
-        result = {
-            "vegetable_type": "bayam merah riil",
-            "confidence": 0.90,
-            "image_url": image_url,
-            "timestamp": datetime.utcnow().isoformat()
-        }
 
-        '''# Call ML service (replace with actual ML service integration)
-        response = requests.post(ML_SERVICE_URL, json={
-            "image_url": image_url,
-            "batch_id": batch_id
-        })
+def identify_vegetable(image_url, batch_id):
+    try:
+        # Download using signed URL
+        resp = requests.get(image_url, stream=True)
+        resp.raise_for_status()
         
-        if response.status_code != 200:
-            logger.warning(f"ML service error: {response.text}")
-            return {"status": "error", "message": "Identification failed"}
+        # Convert image from URL to cv2 format
+        image_array = np.asarray(bytearray(resp.content), dtype=np.uint8)
+        img = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
         
-        result = response.json()'''
+        # Perform detection
+        results = model(img)[0]
         
-        # Save identification to Firestore if batch_id provided
+        # Get detection with highest confidence
+        best_detection = None
+        highest_conf = 0
+        
+        for detection in results.boxes.data:
+            confidence = float(detection[4])
+            if confidence > highest_conf:
+                highest_conf = confidence
+                class_id = int(detection[5])
+                best_detection = {
+                    'class': results.names[class_id],
+                    'confidence': round(confidence * 100, 2)
+                }
+        
+        if best_detection is None:
+            return {'message': 'No objects detected'}
+        
+        # Update Firestore if batch_id is provided
         if batch_id:
             batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
             batch_ref.update({
-                "vegetable_type": result.get('vegetable_type'),
-                "confidence": result.get('confidence', 0),
-                "image_url": result.get('image_url')
+                "detected_object": best_detection['class'],
+                "confidence": best_detection['confidence'],
+                "image_url": image_url
             })
-        
-        logger.info(f"Vegetable identified: {result.get('vegetable_type')}")
-        return result
+            
+        return {
+            'detected_object': best_detection['class'],
+            'confidence': best_detection['confidence'],
+            'batch_id': batch_id,
+            'image_url': image_url
+        }
+
     except Exception as e:
-        logger.error(f"Vegetable identification error: {str(e)}")
-        raise
+        logger.error(f"Error in object detection: {str(e)}")
+        raise Exception("Failed to process image")
