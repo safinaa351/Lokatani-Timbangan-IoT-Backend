@@ -2,3 +2,6 @@ flask
 gunicorn
 google-cloud-storage
 google-cloud-firestore
+python-dotenv
+Pillow
+requests

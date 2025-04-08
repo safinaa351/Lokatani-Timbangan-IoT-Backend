@@ -1,8 +1,9 @@
 from google.cloud import storage, firestore
+from google.cloud.storage.blob import Blob
 from dotenv import load_dotenv
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import requests  # For ML service interaction
 
@@ -16,8 +17,10 @@ logger = logging.getLogger(__name__)
 # Cloud Configuration
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
+ROMPES_BUCKET_NAME = os.getenv("ROMPES_BUCKET_NAME")
 ML_SERVICE_URL = os.getenv("ML_SERVICE_URL")
 
+rompes_storage_client = storage.Client()
 storage_client = storage.Client()
 firestore_client = firestore.Client()
 
@@ -30,9 +33,15 @@ def upload_image(file, filename):
         bucket = storage_client.bucket(BUCKET_NAME)
         blob = bucket.blob(filename)
         blob.upload_from_string(file.read(), content_type=file.content_type)
-        image_url = f"https://storage.googleapis.com/{BUCKET_NAME}/{filename}"
-        logger.info(f"Image uploaded successfully: {image_url}")
-        return image_url
+
+        # Generate signed URL
+        signed_url = blob.generate_signed_url(
+            expiration=timedelta(minutes=15),  # URL valid for 15 minutes
+            method='GET'
+        )
+
+        logger.info(f"Signed URL generated: {signed_url}")
+        return signed_url
     except Exception as e:
         logger.error(f"Image upload failed: {str(e)}")
         raise
@@ -185,4 +194,54 @@ def identify_vegetable(image_url, batch_id=None):
         return result
     except Exception as e:
         logger.error(f"Vegetable identification error: {str(e)}")
+        raise
+
+
+#ROMPESSSSSSSSSSSSSSSS
+def process_rompes_weighing(file, filename, weight, user_id, notes=''):
+    try:
+        # Upload image to Cloud Storage
+        logger.info(f"Uploading rompes image: {filename}")
+        bucket = storage_client.bucket(ROMPES_BUCKET_NAME)
+        blob = bucket.blob(filename)
+        blob.upload_from_string(file.read(), content_type=file.content_type)
+
+        # Generate signed URL
+        image_url = blob.generate_signed_url(
+            expiration=timedelta(minutes=15),  # URL valid for 15 minutes
+            method='GET'
+        )
+        logger.info(f"Rompes image uploaded successfully with signed URL: {image_url}")
+        
+        # Create a rompes document in Firestore
+        logger.info(f"Creating rompes document in Firestore. Weight: {weight}g")
+        rompes_id = str(uuid.uuid4())
+        rompes_ref = firestore_client.collection('rompes_batches').document(rompes_id)
+        
+        # Create document data
+        rompes_data = {
+            "rompes_id": rompes_id,
+            "user_id": user_id,
+            "weight": weight,
+            "image_url": image_url,
+            "notes": notes,
+            "created_at": datetime.utcnow(),
+            "type": "rompes"  # Explicitly mark as rompes
+        }
+        
+        # Save to Firestore
+        rompes_ref.set(rompes_data)
+        logger.info(f"Rompes data saved with ID: {rompes_id}")
+        
+        # Return success result
+        return {
+            "status": "success",
+            "rompes_id": rompes_id,
+            "weight": weight,
+            "image_url": image_url,
+            "message": "Rompes weighing process completed successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in rompes weighing process: {str(e)}")
         raise

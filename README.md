@@ -1,6 +1,6 @@
 # Flask Backend for Weight and Image Storage
 
-This project is a simple Flask backend application designed to store weight data in firestore and image in cloud storage. The API is structured to facilitate easy interaction with the Cloud Build and is intended to be deployed on Google Cloud Run.
+This project is a simple Flask backend application designed to store weight data and images in Firebase. The API is structured to facilitate easy interaction with the Firebase services and is intended to be deployed on Google Cloud Run.
 
 ## Project Structure
 
@@ -25,7 +25,7 @@ flask-backend
 - **app/main.py**: Entry point of the application that creates and runs the Flask app.
 - **app/models.py**: Defines the data models for weight and image storage.
 - **app/routes.py**: Contains the API routes and handlers for processing requests.
-- **app/services/firebase_service.py**: Handles interactions with Firebase for uploading images and storing weight data.
+- **app/services/service.py**: Handles interactions with Firebase, Google Cloud Storage, and Firestore for uploading images, storing weight data, and processing rompes weighing.
 - **Dockerfile**: Instructions for building the Docker image for the application.
 - **cloudbuild.yaml**: Configuration for Google Cloud Build to automate the build and deployment process.
 - **requirements.txt**: Lists the Python dependencies required for the project.
@@ -56,6 +56,17 @@ flask-backend
 ## Deployment
 
 This application can be deployed on Google Cloud Run using Cloud Build. Ensure that your `cloudbuild.yaml` is properly configured to build and push the Docker image to the Container Registry.
+
+## Dependencies
+
+The project uses the following Python libraries:
+- Flask
+- Gunicorn
+- google-cloud-storage
+- google-cloud-firestore
+- python-dotenv
+- Pillow
+- requests (for ML service interaction)
 
 ## License
 
