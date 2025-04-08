@@ -28,35 +28,43 @@ firestore_client = firestore.Client()
 BATCH_COLLECTION = "vegetable_batches"
 WEIGHTS_SUBCOLLECTION = "weights"
 
-def upload_image(file, filename):
+def upload_image(file, filename, bucket_name=None):
+    """Upload image to GCS and return signed URL
+    
+    Args:
+        file: File object to upload
+        filename: Safe filename to use in storage
+        bucket_name: Optional bucket override (defaults to standard image bucket)
+    """
     try:
-        bucket = storage_client.bucket(BUCKET_NAME)
+        # Use provided bucket or default to standard image bucket
+        bucket_name = bucket_name or BUCKET_NAME
+        bucket = storage_client.bucket(bucket_name)
+        
+        # Reset file pointer and upload
+        file.seek(0)
         blob = bucket.blob(filename)
         blob.upload_from_string(file.read(), content_type=file.content_type)
 
         # Generate signed URL
         signed_url = blob.generate_signed_url(
-            expiration=timedelta(minutes=15),  # URL valid for 15 minutes
+            expiration=timedelta(minutes=15),
             method='GET'
         )
 
-        logger.info(f"Signed URL generated: {signed_url}")
+        logger.info(f"Image uploaded to {bucket_name} with URL: {signed_url}")
         return signed_url
     except Exception as e:
         logger.error(f"Image upload failed: {str(e)}")
         raise
 
-def detect_weight(weight_data):
+def detect_weight(current_weight):
     try:
-        # Basic validation
-        if weight_data.get('current_weight', 0) <= 0:
-            logger.warning("Invalid weight detected")
-            return {"status": "error", "message": "Invalid weight"}
-        
-        logger.info(f"Weight detected: {weight_data['current_weight']} grams")
+        # We've already validated in the route handler, so we can trust the weight value
+        logger.info(f"Weight detected: {current_weight} grams")
         return {
             "status": "detected",
-            "weight": weight_data['current_weight'],
+            "weight": current_weight,
             "notification_required": True
         }
     except Exception as e:
@@ -130,10 +138,6 @@ def complete_batch(batch_data):
         if not batch_doc.exists:
             raise ValueError(f"Batch with ID {batch_id} does not exist.")
         
-        # Get full batch info after update
-        batch_info = batch_ref.get().to_dict()
-        vegetable_type = batch_info.get("vegetable_type")  # From ML mock
-
         # Prepare update payload
         update_payload = {
             "status": "completed",
@@ -143,14 +147,17 @@ def complete_batch(batch_data):
         # Update batch document
         batch_ref.update(update_payload)
         
+        # Get updated batch info (just one Firestore read)
+        batch_info = batch_ref.get().to_dict()
+        
         logger.info(f"Batch completed: {batch_id}")
         return {
             "batch_id": batch_id,
             "user_id": batch_info.get("user_id"),
-            "status": "completed",
+            "status": batch_info.get("status"),  # Should be "completed" now
             "created_at": batch_info.get("created_at"),
-            "completed_at": update_payload["completed_at"],
-            "vegetable_type": vegetable_type,
+            "completed_at": batch_info.get("completed_at"),
+            "vegetable_type": batch_info.get("vegetable_type"),
             "total_weight": batch_info.get("total_weight"),
             "confidence": batch_info.get("confidence"),
             "image_url": batch_info.get("image_url")
@@ -161,7 +168,7 @@ def complete_batch(batch_data):
 
 def identify_vegetable(image_url, batch_id=None):
     try:
-         # MOCKED RESPONSE
+        # Mock response (TODO: Replace with actual ML service integration)
         result = {
             "vegetable_type": "bayam merah riil",
             "confidence": 0.90,
@@ -169,17 +176,18 @@ def identify_vegetable(image_url, batch_id=None):
             "timestamp": datetime.utcnow().isoformat()
         }
 
-        '''# Call ML service (replace with actual ML service integration)
-        response = requests.post(ML_SERVICE_URL, json={
-            "image_url": image_url,
-            "batch_id": batch_id
-        })
-        
-        if response.status_code != 200:
-            logger.warning(f"ML service error: {response.text}")
-            return {"status": "error", "message": "Identification failed"}
-        
-        result = response.json()'''
+        # Uncomment when ML service is ready
+        # if ML_SERVICE_URL:
+        #     response = requests.post(ML_SERVICE_URL, json={
+        #         "image_url": image_url,
+        #         "batch_id": batch_id
+        #     })
+        #     
+        #     if response.status_code != 200:
+        #         logger.warning(f"ML service error: {response.text}")
+        #         return {"status": "error", "message": "Identification failed"}
+        #     
+        #     result = response.json()
         
         # Save identification to Firestore if batch_id provided
         if batch_id:
@@ -200,18 +208,9 @@ def identify_vegetable(image_url, batch_id=None):
 #ROMPESSSSSSSSSSSSSSSS
 def process_rompes_weighing(file, filename, weight, user_id, notes=''):
     try:
-        # Upload image to Cloud Storage
-        logger.info(f"Uploading rompes image: {filename}")
-        bucket = storage_client.bucket(ROMPES_BUCKET_NAME)
-        blob = bucket.blob(filename)
-        blob.upload_from_string(file.read(), content_type=file.content_type)
-
-        # Generate signed URL
-        image_url = blob.generate_signed_url(
-            expiration=timedelta(minutes=15),  # URL valid for 15 minutes
-            method='GET'
-        )
-        logger.info(f"Rompes image uploaded successfully with signed URL: {image_url}")
+        # Reuse upload_image function
+        image_url = upload_image(file, filename, ROMPES_BUCKET_NAME)
+        logger.info(f"Rompes image uploaded with URL: {image_url}")
         
         # Create a rompes document in Firestore
         logger.info(f"Creating rompes document in Firestore. Weight: {weight}g")

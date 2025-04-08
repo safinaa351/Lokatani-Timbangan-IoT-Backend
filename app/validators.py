@@ -18,10 +18,11 @@ def is_image(file):
     """Verify that the file is a valid image"""
     try:
         Image.open(file).verify()
-        file.seek(0)
+        file.seek(0)  # Reset file pointer
         return True
     except Exception as e:
         logger.error(f"Image validation error: {str(e)}")
+        file.seek(0)  # Ensure file pointer is reset even on error
         return False
     
 def validate_uploaded_file(file):

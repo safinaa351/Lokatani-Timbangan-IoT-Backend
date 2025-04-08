@@ -45,7 +45,7 @@ def handle_weight_detection():
         return jsonify({"status": "error", "message": error}), 400
     
     # Process weight detection
-    result = detect_weight(data)
+    result = detect_weight(data['current_weight'])
     
     logger.info(f"Weight detection processed: {result}")
     return jsonify(result), 200
