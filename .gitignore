@@ -11,3 +11,8 @@ __pycache__/
 *.log
 .DS_Store
 .env
+
+# Image files for testing
+*.jpg
+*.jpeg
+*.png

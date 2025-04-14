@@ -1,20 +1,19 @@
-# Pakai base image Python
+# UNTUK DEMO: docker run -p 8080:8080 --env-file .env vegetable-iot-backend:latest
 FROM python:3.10-slim
 
-# Set working directory
+# Tambahin sistem dependencies untuk OpenCV + YOLO
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libgl1 \
+    libglib2.0-0 \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Copy semua file ke container
-COPY . .
-
-# Install dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Set PYTHONPATH agar Python bisa menemukan module `app`
-ENV PYTHONPATH=/app
+COPY . .
 
-# Expose port Flask
-EXPOSE 8080
-
-# Jalankan Flask app
 CMD ["python", "main.py"]
