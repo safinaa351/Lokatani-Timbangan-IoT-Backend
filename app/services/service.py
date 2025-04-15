@@ -50,18 +50,6 @@ def upload_image(file, filename, bucket_name=None):
         logger.error(f"Image upload failed: {str(e)}")
         raise
 
-def detect_weight(current_weight):
-    try:
-        logger.info(f"Weight detected: {current_weight} grams")
-        return {
-            "status": "detected",
-            "weight": current_weight,
-            "notification_required": True
-        }
-    except Exception as e:
-        logger.error(f"Weight detection error: {str(e)}")
-        raise
-
 def stabilize_weight(weight_data):
     try:
         batch_id = weight_data.get('batch_id')
