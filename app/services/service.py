@@ -8,7 +8,7 @@ import logging
 import requests  # For ML service interaction
 import cv2
 import numpy as np
-from ultralytics import YOLO
+#from ultralytics import YOLO
 
 # Load environment variables
 load_dotenv()
@@ -50,7 +50,8 @@ def upload_image(file, filename, bucket_name=None):
         logger.error(f"Image upload failed: {str(e)}")
         raise
 
-def stabilize_weight(weight_data):
+### commented because the weight will be handled directly from iot device
+""" def stabilize_weight(weight_data):
     try:
         batch_id = weight_data.get('batch_id')
         stabilized_weight = weight_data.get('stabilized_weight')
@@ -71,7 +72,7 @@ def stabilize_weight(weight_data):
         }
     except Exception as e:
         logger.error(f"Weight stabilization error: {str(e)}")
-        raise
+        raise """
 
 def initiate_batch(batch_data):
     try:

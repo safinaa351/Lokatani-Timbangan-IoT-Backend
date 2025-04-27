@@ -10,9 +10,7 @@ from app.services.service import (
     upload_image,
     initiate_batch, 
     complete_batch, 
-    detect_weight, 
     stabilize_weight,
-    identify_vegetable,
     process_rompes_weighing
 )
 
@@ -32,7 +30,8 @@ def home():
         "service": "IoT Vegetable Weighing System",
         "version": "1.0.0"}), 200
 
-@routes.route('/api/weight/detection', methods=['POST'])
+####COMMENTED BCS MOVING THE IOT ROUTE TO THE IOT ROUTE FILE
+""" @routes.route('/api/weight/detection', methods=['POST'])
 @validate_json_request(required_fields=['current_weight'])
 @handle_api_exception
 def handle_weight_detection():
@@ -48,9 +47,10 @@ def handle_weight_detection():
     result = detect_weight(data['current_weight'])
     
     logger.info(f"Weight detection processed: {result}")
-    return jsonify(result), 200
+    return jsonify(result), 200 """
 
-@routes.route('/api/weight/stabilized', methods=['POST'])
+### commented out for now, as it is not used in the current implementation
+""" @routes.route('/api/weight/stabilized', methods=['POST'])
 @validate_json_request(required_fields=['stabilized_weight', 'batch_id'])
 @handle_api_exception
 def handle_weight_stabilization():
@@ -70,7 +70,7 @@ def handle_weight_stabilization():
     result = stabilize_weight(data)
     
     logger.info(f"Stabilized weight processed: {result}")
-    return jsonify(result), 200
+    return jsonify(result), 200 """
 
 @routes.route('/api/batch/initiate', methods=['POST'])
 @validate_json_request(required_fields=['user_id'])
