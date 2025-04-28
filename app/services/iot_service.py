@@ -41,7 +41,9 @@ def process_weight_from_device(data):
                 "timestamp": datetime.utcnow(),
                 "device_id": device_id
             }
-            weight_doc_ref = weights_ref.add(weight_entry)[0]
+            weight_doc_ref, _ = weights_ref.add(weight_entry)
+            weight_id = weight_doc_ref.id
+
             
             # Update batch total weight
             batch_ref.update({
@@ -53,7 +55,7 @@ def process_weight_from_device(data):
             return {
                 "status": "success",
                 "batch_id": batch_id,
-                "weight_id": weight_doc_ref.id,
+                "weight_id": weight_id,  # Return the ID of the weight document
                 "message": "Weight added to batch"
             }
         else:

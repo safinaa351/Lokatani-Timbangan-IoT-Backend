@@ -3,6 +3,8 @@ import logging
 from PIL import Image
 import json
 import functools
+import os
+
 
 # Setup logging
 logger = logging.getLogger(__name__)

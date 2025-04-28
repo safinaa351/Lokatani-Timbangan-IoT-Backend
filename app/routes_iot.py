@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 import logging
-from app.validators import validate_json_request, handle_api_exception
+from app.validators import validate_json_request, handle_api_exception, validate_api_key
 from app.services.iot_service import process_weight_from_device, update_device_status
 
 iot_routes = Blueprint('iot_routes', __name__)
