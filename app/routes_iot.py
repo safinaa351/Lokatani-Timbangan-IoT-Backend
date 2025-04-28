@@ -10,6 +10,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 @iot_routes.route('/api/iot/weight', methods=['POST'])
+@validate_api_key('IOT_API_KEY')
 @validate_json_request(required_fields=['device_id', 'weight'])
 @handle_api_exception
 def handle_iot_weight():

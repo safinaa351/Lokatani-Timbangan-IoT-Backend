@@ -112,3 +112,31 @@ def handle_api_exception(f):
                 "details": str(e)
             }), 500
     return wrapper
+
+### checks API KEY of IoT devices ###
+def validate_api_key(api_key_name):
+    """Decorator for validating API key in request header"""
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            expected_key = os.getenv(api_key_name)
+            auth_header = request.headers.get('Authorization')
+            
+            if not auth_header or not auth_header.startswith('Bearer '):
+                logger.warning(f"Missing or invalid Authorization header in request to {request.path}")
+                return jsonify({
+                    "status": "error",
+                    "message": "Authentication required"
+                }), 401
+                
+            provided_key = auth_header.split('Bearer ')[1]
+            if provided_key != expected_key:
+                logger.warning(f"Invalid API key in request to {request.path}")
+                return jsonify({
+                    "status": "error",
+                    "message": "Invalid authentication"
+                }), 401
+                
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
