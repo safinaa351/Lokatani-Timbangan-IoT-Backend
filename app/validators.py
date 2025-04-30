@@ -4,6 +4,7 @@ from PIL import Image
 import json
 import functools
 import os
+import re
 
 
 # Setup logging
@@ -142,3 +143,42 @@ def validate_api_key(api_key_name):
             return f(*args, **kwargs)
         return wrapper
     return decorator
+
+###auth valication###
+def validate_email(email, company_domain=None):
+    """Validate email format and optionally check company domain"""
+    if not isinstance(email, str) or not email.strip():
+        return "Email must be a non-empty string"
+    
+    email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+    if not re.match(email_regex, email):
+        return "Invalid email format"
+    
+    if company_domain:
+        domain_regex = f'^[a-zA-Z0-9_.+-]+@{company_domain}$'
+        if not re.match(domain_regex, email):
+            return f"Email must use the company domain (@{company_domain})"
+    
+    return None
+
+def validate_password(password, min_length=8):
+    """Validate password strength"""
+    if not isinstance(password, str) or not password.strip():
+        return "Password must be a non-empty string"
+    
+    if len(password) < min_length:
+        return f"Password must be at least {min_length} characters long"
+    
+    # Check for at least one uppercase letter
+    if not re.search(r'[A-Z]', password):
+        return "Password must contain at least one uppercase letter"
+    
+    # Check for at least one lowercase letter
+    if not re.search(r'[a-z]', password):
+        return "Password must contain at least one lowercase letter"
+    
+    # Check for at least one digit
+    if not re.search(r'\d', password):
+        return "Password must contain at least one number"
+    
+    return None

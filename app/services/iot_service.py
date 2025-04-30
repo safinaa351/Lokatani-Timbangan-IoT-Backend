@@ -33,18 +33,24 @@ def process_weight_from_device(data):
                     "status": "error",
                     "message": "Batch not found"
                 }
-                
-            # Add weight to the weights subcollection
+            
+            # Define weights_ref here
             weights_ref = batch_ref.collection(WEIGHTS_SUBCOLLECTION)
+
+            # Create document reference with auto ID first
+            weight_doc_ref = weights_ref.document()  # Creates document with auto ID
+            weight_id = weight_doc_ref.id  # Get the ID
+
+            # Create the weight entry with all the data
             weight_entry = {
                 "weight": weight,
                 "timestamp": datetime.utcnow(),
                 "device_id": device_id
             }
-            weight_doc_ref, _ = weights_ref.add(weight_entry)
-            weight_id = weight_doc_ref.id
 
-            
+            # Set the document data
+            weight_doc_ref.set(weight_entry)
+
             # Update batch total weight
             batch_ref.update({
                 "total_weight": firestore.Increment(weight)
@@ -55,7 +61,6 @@ def process_weight_from_device(data):
             return {
                 "status": "success",
                 "batch_id": batch_id,
-                "weight_id": weight_id,  # Return the ID of the weight document
                 "message": "Weight added to batch"
             }
         else:
