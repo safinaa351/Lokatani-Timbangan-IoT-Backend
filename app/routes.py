@@ -11,7 +11,9 @@ from app.services.service import (
     initiate_batch, 
     complete_batch,
     process_rompes_weighing,
-    identify_vegetable
+    identify_vegetable,
+    get_user_batch_history,
+    get_batch_detail
 )
 
 routes = Blueprint('routes', __name__)
@@ -197,3 +199,35 @@ def handle_rompes_weighing():
     
     logger.info(f"Rompes weighing processed: {result}")
     return jsonify(result), 200
+
+@routes.route('/api/batches/history', methods=['GET'])
+@handle_api_exception
+def get_user_batches():
+    user_id = request.args.get('user_id')
+    logger.info(f"Fetching batch history for user: {user_id}")
+    
+    if not user_id:
+        logger.warning("Missing user_id in batch history request")
+        return jsonify({"status": "error", "message": "User ID is required"}), 400
+        
+    batches = get_user_batch_history(user_id)
+    logger.info(f"Retrieved {len(batches)} batches for user {user_id}")
+    
+    return jsonify({"status": "success", "batches": batches}), 200
+
+@routes.route('/api/batches/<batch_id>', methods=['GET'])
+@handle_api_exception
+def get_batch_details(batch_id):
+    logger.info(f"Fetching details for batch: {batch_id}")
+    
+    if not batch_id:
+        return jsonify({"status": "error", "message": "Batch ID is required"}), 400
+        
+    batch_details = get_batch_detail(batch_id)
+    
+    if batch_details.get('status') == 'error':
+        logger.warning(f"Batch details request failed: {batch_details.get('message')}")
+        return jsonify(batch_details), 404
+        
+    logger.info(f"Retrieved details for batch: {batch_id}")
+    return jsonify(batch_details), 200

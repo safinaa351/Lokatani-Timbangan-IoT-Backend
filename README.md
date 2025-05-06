@@ -1,6 +1,6 @@
 # Lokatani IoT Weight and Image Management Backend
 
-This project is the backend API for Lokatani's IoT-based smart scales, designed to streamline the vegetable weighing process. It receives weight data and images from IoT devices, stores them securely in Google Cloud services (Firebase, Firestore, and Cloud Storage), and manages weighing sessions. This system aims to improve efficiency and accuracy in agricultural product handling.
+This project is the backend API for Lokatani's IoT-based smart scales, designed to streamline the vegetable weighing process. It receives weight data and images from IoT devices, stores them securely in Google Cloud services (Firestore, and Cloud Storage), and manages weighing sessions. This system aims to improve efficiency and accuracy in agricultural product handling.
 
 ## Project Structure
 
@@ -58,6 +58,29 @@ flask-backend
 
 - The API provides endpoints to upload weight data and images to Firebase.
 - Ensure that you have configured Firebase credentials and set up the necessary Firebase services.
+
+### API Endpoints
+
+#### Authentication
+- `POST /api/auth/register`: Register a new user
+- `POST /api/auth/login`: Login existing user
+- `GET /api/auth/profile/<user_id>`: Get user profile information
+- `PUT /api/auth/profile`: Update user profile information
+- `PUT /api/auth/password`: Change user password
+
+#### Batch Management
+- `POST /api/batch/initiate`: Start a new batch weighing session
+- `POST /api/batch/complete`: Complete a batch weighing session
+- `GET /api/batches/history`: Get batch history for a user
+- `GET /api/batches/<batch_id>`: Get detailed information about a specific batch
+
+#### IoT Device
+- `POST /api/iot/weight`: Process weight data from IoT device
+- `POST /api/iot/status`: Update IoT device status
+
+#### Image Processing
+- `POST /api/ml/identify-vegetable`: Process and identify vegetable in image
+- `POST /api/rompes/process`: Process rompes weighing with image
 
 ## Deployment
 

@@ -205,3 +205,80 @@ def process_rompes_weighing(file, filename, weight, user_id, notes=''):
     except Exception as e:
         logger.error(f"Error in rompes weighing process: {str(e)}")
         raise
+
+def get_user_batch_history(user_id):
+    """Get batch history for a specific user"""
+    try:
+        logger.info(f"Retrieving batch history for user: {user_id}")
+        batch_ref = firestore_client.collection(BATCH_COLLECTION)
+        query = batch_ref.where('user_id', '==', user_id).order_by('created_at', direction=firestore.Query.DESCENDING)
+        
+        batches = []
+        for doc in query.stream():
+            batch_data = doc.to_dict()
+            batch_data['batch_id'] = doc.id
+            
+            # Format timestamp for display
+            if 'created_at' in batch_data and batch_data['created_at']:
+                created_at = batch_data['created_at']
+                batch_data['formatted_date'] = created_at.strftime('%A, %d-%m-%Y')
+                
+            # Include only needed fields for the list view
+            batches.append({
+                'batch_id': doc.id,
+                'vegetable_type': batch_data.get('vegetable_type', 'Unknown'),
+                'total_weight': batch_data.get('total_weight', 0),
+                'image_url': batch_data.get('image_url', ''),
+                'formatted_date': batch_data.get('formatted_date', ''),
+                'status': batch_data.get('status', '')
+            })
+            
+        logger.info(f"Found {len(batches)} batches for user {user_id}")
+        return batches
+        
+    except Exception as e:
+        logger.error(f"Error retrieving batch history: {str(e)}")
+        raise
+
+def get_batch_detail(batch_id):
+    """Get detailed information about a specific batch"""
+    try:
+        logger.info(f"Retrieving details for batch: {batch_id}")
+        batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
+        batch_doc = batch_ref.get()
+        
+        if not batch_doc.exists:
+            logger.warning(f"Batch {batch_id} not found")
+            return {
+                "status": "error",
+                "message": "Batch not found"
+            }
+            
+        batch_data = batch_doc.to_dict()
+        batch_data['batch_id'] = batch_id
+        
+        # Format timestamps
+        for time_field in ['created_at', 'completed_at']:
+            if time_field in batch_data and batch_data[time_field]:
+                batch_data[f'formatted_{time_field}'] = batch_data[time_field].strftime('%A, %d-%m-%Y %H:%M:%S')
+        
+        # Get individual weights in this batch
+        weights = []
+        weights_ref = batch_ref.collection(WEIGHTS_SUBCOLLECTION)
+        for weight_doc in weights_ref.order_by('timestamp').stream():
+            weight_data = weight_doc.to_dict()
+            if 'timestamp' in weight_data:
+                weight_data['formatted_time'] = weight_data['timestamp'].strftime('%H:%M:%S')
+            weights.append(weight_data)
+            
+        batch_data['weights'] = weights
+        logger.info(f"Retrieved batch {batch_id} with {len(weights)} weight entries")
+        
+        return {
+            "status": "success",
+            "batch": batch_data
+        }
+        
+    except Exception as e:
+        logger.error(f"Error retrieving batch details: {str(e)}")
+        raise
