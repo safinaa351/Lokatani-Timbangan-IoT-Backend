@@ -14,6 +14,8 @@ from app.services.auth_service import (
     update_user_profile,
     change_password
 )
+from app.jwt.jwt_handler import generate_token, refresh_access_token
+from app.jwt.jwt_middleware import token_required
 
 auth_routes = Blueprint('auth_routes', __name__)
 
@@ -57,8 +59,27 @@ def register():
         logger.warning(f"Registration failed: {result.get('message')}")
         return jsonify(result), 400
     
-    logger.info(f"User registered successfully: {result.get('user_id')}")
-    return jsonify(result), 201
+    # Generate tokens for immediate login after registration
+    try:
+        user_id = result.get('user_id')
+        email = result.get('email')
+        role = result.get('role')
+        
+        access_token = generate_token(user_id, email, role, 'access')
+        refresh_token = generate_token(user_id, email, role, 'refresh')
+        
+        # Add tokens to result
+        result['access_token'] = access_token
+        result['refresh_token'] = refresh_token
+        
+        logger.info(f"User registered successfully with tokens: {user_id}")
+        return jsonify(result), 201
+    except Exception as e:
+        logger.error(f"Token generation failed: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": "Registration error"
+        }), 500
 
 @auth_routes.route('/api/auth/login', methods=['POST'])
 @validate_json_request(required_fields=['email', 'password'])
@@ -78,10 +99,57 @@ def login():
         logger.warning(f"Login failed for {data.get('email')}: {result.get('message')}")
         return jsonify(result), 401
     
-    logger.info(f"User logged in successfully: {result.get('user_id')}")
-    return jsonify(result), 200
+    # Generate JWT tokens
+    try:
+        user_id = result.get('user_id')
+        email = result.get('email')
+        role = result.get('role')
+        
+        access_token = generate_token(user_id, email, role, 'access')
+        refresh_token = generate_token(user_id, email, role, 'refresh')
+        
+        # Add tokens to result
+        result['access_token'] = access_token
+        result['refresh_token'] = refresh_token
+        
+        logger.info(f"User logged in successfully with tokens: {user_id}")
+        return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Token generation failed: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": "Authentication error"
+        }), 500
+
+@auth_routes.route('/api/auth/refresh', methods=['POST'])
+@validate_json_request(required_fields=['refresh_token'])
+@handle_api_exception
+def refresh():
+    """Refresh access token using refresh token"""
+    data = request.json
+    refresh_token = data.get('refresh_token')
+    
+    logger.info("Token refresh request received")
+    
+    # Generate new access token
+    access_token = refresh_access_token(refresh_token)
+    
+    if not access_token:
+        logger.warning("Token refresh failed: invalid refresh token")
+        return jsonify({
+            "status": "error",
+            "message": "Invalid or expired refresh token"
+        }), 401
+    
+    logger.info("Access token refreshed successfully")
+    return jsonify({
+        "status": "success",
+        "access_token": access_token,
+        "message": "Token refreshed successfully"
+    }), 200
 
 @auth_routes.route('/api/auth/profile/<user_id>', methods=['GET'])
+@token_required
 @handle_api_exception
 def get_profile(user_id):
     """Get user profile information"""
@@ -91,6 +159,14 @@ def get_profile(user_id):
     if not user_id:
         logger.warning("Missing user_id in profile request")
         return jsonify({"status": "error", "message": "User ID is required"}), 400
+    
+    # Verify the user is accessing their own profile, unless they're an admin
+    if request.user.get('user_id') != user_id and request.user.get('role') != 'admin':
+        logger.warning(f"User {request.user.get('user_id')} attempted to access profile of {user_id}")
+        return jsonify({
+            "status": "error",
+            "message": "Unauthorized access to profile"
+        }), 403
     
     # Fetch profile
     result = get_user_profile(user_id)
@@ -103,6 +179,7 @@ def get_profile(user_id):
     return jsonify(result), 200
 
 @auth_routes.route('/api/auth/profile', methods=['PUT'])
+@token_required
 @validate_json_request(required_fields=['user_id'])
 @handle_api_exception
 def update_profile():
@@ -110,6 +187,14 @@ def update_profile():
     data = request.json
     user_id = data.get('user_id')
     logger.info(f"Profile update request for user: {user_id}")
+    
+    # Verify the user is updating their own profile, unless they're an admin
+    if request.user.get('user_id') != user_id and request.user.get('role') != 'admin':
+        logger.warning(f"User {request.user.get('user_id')} attempted to update profile of {user_id}")
+        return jsonify({
+            "status": "error",
+            "message": "Unauthorized profile update"
+        }), 403
     
     # Update profile
     result = update_user_profile(user_id, data)
@@ -122,6 +207,7 @@ def update_profile():
     return jsonify(result), 200
 
 @auth_routes.route('/api/auth/password', methods=['PUT'])
+@token_required
 @validate_json_request(required_fields=['user_id', 'current_password', 'new_password'])
 @handle_api_exception
 def update_password():
@@ -129,6 +215,14 @@ def update_password():
     data = request.json
     user_id = data.get('user_id')
     logger.info(f"Password change request for user: {user_id}")
+    
+    # Verify the user is changing their own password
+    if request.user.get('user_id') != user_id:
+        logger.warning(f"User {request.user.get('user_id')} attempted to change password of {user_id}")
+        return jsonify({
+            "status": "error",
+            "message": "Unauthorized password change"
+        }), 403
     
     # Validate new password
     password_error = validate_password(data.get('new_password'))

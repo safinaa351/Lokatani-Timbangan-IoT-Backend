@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_cors import CORS
 
 limiter = Limiter(
     key_func=get_remote_address,
@@ -10,6 +11,9 @@ limiter = Limiter(
 def create_app():
     app = Flask(__name__)
     
+    # Enable CORS for all routes
+    CORS(app)
+
     # Initialize limiter
     limiter.init_app(app)
 

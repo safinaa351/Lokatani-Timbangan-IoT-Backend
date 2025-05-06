@@ -5,6 +5,7 @@ from app.validators import (
     validate_uploaded_file, validate_json_request, handle_api_exception,
     validate_numeric, validate_string
 )
+from app.jwt.jwt_middleware import token_required  # Import JWT middleware
 
 from app.services.service import (
     upload_image,
@@ -32,54 +33,21 @@ def home():
         "service": "IoT Vegetable Weighing System",
         "version": "1.0.0"}), 200
 
-####COMMENTED BCS MOVING THE IOT ROUTE TO THE IOT ROUTE FILE
-""" @routes.route('/api/weight/detection', methods=['POST'])
-@validate_json_request(required_fields=['current_weight'])
-@handle_api_exception
-def handle_weight_detection():
-    data = request.json
-    logger.info(f"Weight detection received: {data}")
-    
-    # Validate weight value
-    error = validate_numeric(data['current_weight'], 'Weight', min_value=0)
-    if error:
-        return jsonify({"status": "error", "message": error}), 400
-    
-    # Process weight detection
-    result = detect_weight(data['current_weight'])
-    
-    logger.info(f"Weight detection processed: {result}")
-    return jsonify(result), 200 """
-
-### commented out for now, as it is not used in the current implementation
-""" @routes.route('/api/weight/stabilized', methods=['POST'])
-@validate_json_request(required_fields=['stabilized_weight', 'batch_id'])
-@handle_api_exception
-def handle_weight_stabilization():
-    data = request.json
-    logger.info(f"Stabilized weight received: {data}")
-    
-    # Validate weight value and batch_id
-    error = validate_numeric(data['stabilized_weight'], 'Stabilized weight', min_value=0)
-    if error:
-        return jsonify({"status": "error", "message": error}), 400
-    
-    error = validate_string(data['batch_id'], 'Batch ID')
-    if error:
-        return jsonify({"status": "error", "message": error}), 400
-    
-    # Save stabilized weight
-    result = stabilize_weight(data)
-    
-    logger.info(f"Stabilized weight processed: {result}")
-    return jsonify(result), 200 """
-
 @routes.route('/api/batch/initiate', methods=['POST'])
+@token_required  # Protect with JWT
 @validate_json_request(required_fields=['user_id'])
 @handle_api_exception
 def initiate_batch_tracking():
     data = request.json
     logger.info(f"Batch initiation request: {data}")
+    
+    # Validate that the authenticated user matches the user_id in the request
+    if request.user.get('user_id') != data.get('user_id') and request.user.get('role') != 'admin':
+        logger.warning(f"User {request.user.get('user_id')} attempted to initiate batch for {data.get('user_id')}")
+        return jsonify({
+            "status": "error", 
+            "message": "You can only initiate batches for your own account"
+        }), 403
     
     # Validate user_id
     error = validate_string(data['user_id'], 'User ID')
@@ -93,6 +61,7 @@ def initiate_batch_tracking():
     return jsonify(batch_info), 200
 
 @routes.route('/api/batch/complete', methods=['POST'])
+@token_required  # Protect with JWT
 @validate_json_request(required_fields=['batch_id'])
 @handle_api_exception
 def finalize_batch_tracking():
@@ -111,6 +80,7 @@ def finalize_batch_tracking():
     return jsonify(batch_result), 200
 
 @routes.route('/api/ml/identify-vegetable', methods=['POST'])
+@token_required  # Protect with JWT
 @handle_api_exception
 def process_vegetable_identification():
     logger.info("Vegetable identification request received")
@@ -147,8 +117,8 @@ def process_vegetable_identification():
     logger.info(f"Vegetable identification result: {identification_result}")
     return jsonify(identification_result), 200
 
-#ROMPESSSSSSSSSSSSSSSSS
 @routes.route('/api/rompes/process', methods=['POST'])
+@token_required  # Protect with JWT
 @handle_api_exception
 def handle_rompes_weighing():
     logger.info("Rompes weighing request received")
@@ -173,6 +143,14 @@ def handle_rompes_weighing():
     file = request.files['file']
     user_id = request.form.get('user_id')
     notes = request.form.get('notes', '')
+    
+    # Verify user is processing for their own account
+    if request.user.get('user_id') != user_id and request.user.get('role') != 'admin':
+        logger.warning(f"User {request.user.get('user_id')} attempted rompes weighing for {user_id}")
+        return jsonify({
+            "status": "error", 
+            "message": "You can only process weighing for your own account"
+        }), 403
     
     # Validate file
     error = validate_uploaded_file(file)
@@ -201,6 +179,7 @@ def handle_rompes_weighing():
     return jsonify(result), 200
 
 @routes.route('/api/batches/history', methods=['GET'])
+@token_required  # Protect with JWT
 @handle_api_exception
 def get_user_batches():
     user_id = request.args.get('user_id')
@@ -209,6 +188,14 @@ def get_user_batches():
     if not user_id:
         logger.warning("Missing user_id in batch history request")
         return jsonify({"status": "error", "message": "User ID is required"}), 400
+    
+    # Verify user is accessing their own batches
+    if request.user.get('user_id') != user_id and request.user.get('role') != 'admin':
+        logger.warning(f"User {request.user.get('user_id')} attempted to access batches for {user_id}")
+        return jsonify({
+            "status": "error", 
+            "message": "You can only view your own batches"
+        }), 403
         
     batches = get_user_batch_history(user_id)
     logger.info(f"Retrieved {len(batches)} batches for user {user_id}")
@@ -216,6 +203,7 @@ def get_user_batches():
     return jsonify({"status": "success", "batches": batches}), 200
 
 @routes.route('/api/batches/<batch_id>', methods=['GET'])
+@token_required  # Protect with JWT
 @handle_api_exception
 def get_batch_details(batch_id):
     logger.info(f"Fetching details for batch: {batch_id}")
@@ -228,6 +216,14 @@ def get_batch_details(batch_id):
     if batch_details.get('status') == 'error':
         logger.warning(f"Batch details request failed: {batch_details.get('message')}")
         return jsonify(batch_details), 404
+    
+    # Verify user owns the batch or is admin
+    if batch_details.get('batch', {}).get('user_id') != request.user.get('user_id') and request.user.get('role') != 'admin':
+        logger.warning(f"User {request.user.get('user_id')} attempted to access batch {batch_id} belonging to another user")
+        return jsonify({
+            "status": "error", 
+            "message": "You can only view your own batches"
+        }), 403
         
     logger.info(f"Retrieved details for batch: {batch_id}")
     return jsonify(batch_details), 200
