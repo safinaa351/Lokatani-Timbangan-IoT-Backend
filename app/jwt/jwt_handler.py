@@ -32,9 +32,12 @@ def generate_token(user_id, email, role, token_type='access'):
         
         # Generate token
         token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-        logger.debug(f"Generated {token_type} token for user {user_id}")
+        if isinstance(token, bytes):
+            token = token.decode('utf-8')
         
+        logger.debug(f"Generated {token_type} token for user {user_id}")
         return token
+        
     except Exception as e:
         logger.error(f"Error generating token: {str(e)}")
         raise

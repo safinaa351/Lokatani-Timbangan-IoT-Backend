@@ -72,7 +72,7 @@ def register():
         result['access_token'] = access_token
         result['refresh_token'] = refresh_token
         
-        logger.info(f"User registered successfully with tokens: {user_id}")
+        logger.info(f"User registered successfully with tokens: {access_token}. Result: {result}")
         return jsonify(result), 201
     except Exception as e:
         logger.error(f"Token generation failed: {str(e)}")
@@ -112,7 +112,7 @@ def login():
         result['access_token'] = access_token
         result['refresh_token'] = refresh_token
         
-        logger.info(f"User logged in successfully with tokens: {user_id}")
+        logger.info(f"User logged in successfully with tokens: {user_id}. Result: {result}")
         return jsonify(result), 200
     except Exception as e:
         logger.error(f"Token generation failed: {str(e)}")

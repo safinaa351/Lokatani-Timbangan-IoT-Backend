@@ -41,18 +41,19 @@ def initiate_batch_tracking():
     data = request.json
     logger.info(f"Batch initiation request: {data}")
     
-    # Validate that the authenticated user matches the user_id in the request
-    if request.user.get('user_id') != data.get('user_id') and request.user.get('role') != 'admin':
-        logger.warning(f"User {request.user.get('user_id')} attempted to initiate batch for {data.get('user_id')}")
+    jwt_user_id = request.user.get('user_id')
+    requested_user_id = data.get('user_id')
+
+    # Ensure the user is only creating batches for themselves (unless admin)
+    if jwt_user_id != requested_user_id and request.user.get('role') != 'admin':
+        logger.warning(f"User {jwt_user_id} attempted to initiate batch for {requested_user_id}")
         return jsonify({
             "status": "error", 
             "message": "You can only initiate batches for your own account"
         }), 403
     
-    # Validate user_id
-    error = validate_string(data['user_id'], 'User ID')
-    if error:
-        return jsonify({"status": "error", "message": error}), 400
+    # Force the user_id to be the authenticated user's ID for security
+    data['user_id'] = jwt_user_id
     
     # Initiate batch
     batch_info = initiate_batch(data)
