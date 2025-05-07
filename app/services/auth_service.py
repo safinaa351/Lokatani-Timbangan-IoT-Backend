@@ -16,7 +16,7 @@ firestore_client = firestore.Client()
 
 # Constants
 USER_COLLECTION = "users"
-EMAIL_REGEX = r'^[a-zA-Z0-9_.+-]+@lokatani\.com$'  # Adjust to your company domain
+EMAIL_REGEX = r'^[a-zA-Z0-9_.+-]+@lokatani\.id$'  # Adjust to your company domain
 
 def hash_password(password, salt=None):
     if not salt:
@@ -45,7 +45,7 @@ def create_user(email, password, name, role='user'):
             logger.warning(f"Invalid email format for company domain: {email}")
             return {
                 "status": "error",
-                "message": "Email must be from the company domain (@lokatani.com)"
+                "message": "Email must be from the company domain (@lokatani.id)"
             }
         
         # Check if user already exists

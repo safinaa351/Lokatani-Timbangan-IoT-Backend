@@ -32,7 +32,7 @@ def register():
     logger.info(f"User registration request received for: {data.get('email')}")
     
     # Validate inputs
-    email_error = validate_email(data.get('email'), company_domain='lokatani.com')
+    email_error = validate_email(data.get('email'), company_domain='lokatani.id')
     if email_error:
         logger.warning(f"Email validation failed: {email_error}")
         return jsonify({"status": "error", "message": email_error}), 400
