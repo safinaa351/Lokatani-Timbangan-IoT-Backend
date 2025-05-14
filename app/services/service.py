@@ -9,7 +9,7 @@ import requests  # For ML service interaction
 import cv2
 import numpy as np
 from ultralytics import YOLO
-
+import gc
 # Load environment variables
 load_dotenv()
 
@@ -30,6 +30,8 @@ firestore_client = firestore.Client()
 # Firestore Collection
 BATCH_COLLECTION = "vegetable_batches"
 WEIGHTS_SUBCOLLECTION = "weights"
+model = YOLO('services/models/weights/best.pt')
+
 
 def upload_image(file, filename, bucket_name=None):
     try:
@@ -129,34 +131,36 @@ def complete_batch(batch_data):
         raise
 
 def identify_vegetable(image_url, batch_id=None):
+    img = None
+    image_array = None
+    resp = None
+    results = None
+
     try:
         resp = requests.get(image_url, stream=True)
         resp.raise_for_status()
         image_array = np.asarray(bytearray(resp.content), dtype=np.uint8)
         img = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
 
-        model = YOLO('services/models/weights/best.pt')
         results = model(img)[0]
 
-        best_detection = None
-        highest_conf = 0
-
+        detections = []
         for det in results.boxes.data:
             conf = float(det[4])
-            if conf > highest_conf:
-                highest_conf = conf
-                class_id = int(det[5])
-                best_detection = {
-                    'vegetable_type': results.names[class_id],
-                    'confidence': round(conf, 2)
-                }
+            class_id = int(det[5])
+            detections.append({
+                'vegetable_type': results.names[class_id],
+                'confidence': round(conf, 2)
+            })
 
-        if not best_detection:
+        if not detections:
             logger.warning("No object detected")
             return {"status": "error", "message": "No object detected"}
 
-        # Only return if highest confidence is "kale" or "bayam merah"
-        if best_detection['vegetable_type'] in ["kale", "bayam merah"]:
+        detections.sort(key=lambda x: x['confidence'], reverse=True)
+        best_detection = detections[0]
+
+        if best_detection['vegetable_type'] in ["kale", "bayam merah"] and best_detection['confidence'] >= 0.7:
             best_detection["image_url"] = image_url
             best_detection["timestamp"] = datetime.utcnow().isoformat()
 
@@ -171,13 +175,23 @@ def identify_vegetable(image_url, batch_id=None):
             logger.info(f"Detected: {best_detection['vegetable_type']} with {best_detection['confidence']}")
             return best_detection
         else:
-            logger.info(f"Detected vegetable is not kale or bayam merah: {best_detection['vegetable_type']}")
+            logger.info(f"Detected vegetable is not kale or bayam merah or confidence is below threshold: {best_detection['vegetable_type']}")
             return {"status": "error", "message": "bukan kale atau bayam merah"}
 
     except Exception as e:
         logger.error(f"Vegetable identification error: {str(e)}")
         raise
 
+    finally:
+        try:
+            del img
+            del image_array
+            del resp
+            del results
+            gc.collect()
+        except:
+            pass  # biar gak error kalau ada yg belum ke-define
+    
 def process_rompes_weighing(file, filename, weight, user_id, notes=''):
     try:
         image_url = upload_image(file, filename, ROMPES_BUCKET_NAME)
