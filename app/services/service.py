@@ -135,7 +135,7 @@ def identify_vegetable(image_url, batch_id=None):
         image_array = np.asarray(bytearray(resp.content), dtype=np.uint8)
         img = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
 
-        model = YOLO('models/weights/best.pt')
+        model = YOLO('services/models/weights/best.pt')
         results = model(img)[0]
 
         best_detection = None
@@ -155,24 +155,24 @@ def identify_vegetable(image_url, batch_id=None):
             logger.warning("No object detected")
             return {"status": "error", "message": "No object detected"}
 
-        # Only allow "kale" or "bayam merah"
-        if best_detection['vegetable_type'] not in ["kale", "bayam merah"]:
+        # Only return if highest confidence is "kale" or "bayam merah"
+        if best_detection['vegetable_type'] in ["kale", "bayam merah"]:
+            best_detection["image_url"] = image_url
+            best_detection["timestamp"] = datetime.utcnow().isoformat()
+
+            if batch_id:
+                batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
+                batch_ref.update({
+                    "vegetable_type": best_detection['vegetable_type'],
+                    "confidence": best_detection['confidence'],
+                    "image_url": image_url
+                })
+
+            logger.info(f"Detected: {best_detection['vegetable_type']} with {best_detection['confidence']}")
+            return best_detection
+        else:
             logger.info(f"Detected vegetable is not kale or bayam merah: {best_detection['vegetable_type']}")
             return {"status": "error", "message": "bukan kale atau bayam merah"}
-
-        best_detection["image_url"] = image_url
-        best_detection["timestamp"] = datetime.utcnow().isoformat()
-
-        if batch_id:
-            batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
-            batch_ref.update({
-                "vegetable_type": best_detection['vegetable_type'],
-                "confidence": best_detection['confidence'],
-                "image_url": image_url
-            })
-
-        logger.info(f"Detected: {best_detection['vegetable_type']} with {best_detection['confidence']}")
-        return best_detection
 
     except Exception as e:
         logger.error(f"Vegetable identification error: {str(e)}")
