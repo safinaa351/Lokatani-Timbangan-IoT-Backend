@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 # JWT Configuration
 JWT_SECRET = os.getenv('JWT_SECRET', 'your-secret-key-should-be-in-env')
 JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
-JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 3600))  # 1 hour
+JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 7200))  # 2 hour
 JWT_REFRESH_TOKEN_EXPIRES = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES', 604800))  # 7 days
 
 def generate_token(user_id, email, role, token_type='access'):

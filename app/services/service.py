@@ -52,29 +52,6 @@ def upload_image(file, filename, bucket_name=None):
         logger.error(f"Image upload failed: {str(e)}")
         raise
 
-### commented because the weight will be handled directly from iot device
-""" def stabilize_weight(weight_data):
-    try:
-        batch_id = weight_data.get('batch_id')
-        stabilized_weight = weight_data.get('stabilized_weight')
-        batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
-        weights_ref = batch_ref.collection(WEIGHTS_SUBCOLLECTION)
-        weight_entry = {
-            "weight": stabilized_weight,
-            "timestamp": datetime.utcnow(),
-        }
-        weights_ref.add(weight_entry)
-        batch_ref.update({
-            "total_weight": firestore.Increment(stabilized_weight)
-        })
-        return {
-            "status": "stabilized",
-            "batch_id": batch_id,
-            "weight": stabilized_weight
-        }
-    except Exception as e:
-        logger.error(f"Weight stabilization error: {str(e)}")
-        raise """
 
 def initiate_batch(batch_data):
     try:
