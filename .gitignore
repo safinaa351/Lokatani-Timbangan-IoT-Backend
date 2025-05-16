@@ -6,6 +6,7 @@ __pycache__/
 
 # Credential files
 *.json
+/commit_msg.py
 
 # Ignore Docker build cache
 *.log
