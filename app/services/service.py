@@ -30,7 +30,7 @@ firestore_client = firestore.Client()
 # Firestore Collection
 BATCH_COLLECTION = "vegetable_batches"
 WEIGHTS_SUBCOLLECTION = "weights"
-model = YOLO('services/models/weights/best.pt')
+model = YOLO('app/services/models/weights/best.pt')
 
 
 def upload_image(file, filename, bucket_name=None):
