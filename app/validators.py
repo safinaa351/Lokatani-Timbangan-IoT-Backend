@@ -25,7 +25,6 @@ def is_image(file):
         return True
     except Exception as e:
         logger.error(f"Image validation error: {str(e)}")
-        file.seek(0)  # Ensure file pointer is reset even on error
         return False
     
 def validate_uploaded_file(file):
