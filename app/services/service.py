@@ -52,7 +52,6 @@ def upload_image(file, filename, bucket_name=None):
         logger.error(f"Image upload failed: {str(e)}")
         raise
 
-
 def initiate_batch(batch_data):
     try:
         batch_id = str(uuid.uuid4())

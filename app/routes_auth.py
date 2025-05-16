@@ -131,11 +131,11 @@ def refresh():
     
     logger.info("Token refresh request received")
     
-    # Generate new access token
-    access_token = refresh_access_token(refresh_token)
+    # Call the modified refresh_access_token function
+    tokens = refresh_access_token(refresh_token)
     
-    if not access_token:
-        logger.warning("Token refresh failed: invalid refresh token")
+    if not tokens:
+        logger.warning("Token refresh failed: invalid or expired refresh token")
         return jsonify({
             "status": "error",
             "message": "Invalid or expired refresh token"
@@ -144,7 +144,7 @@ def refresh():
     logger.info("Access token refreshed successfully")
     return jsonify({
         "status": "success",
-        "access_token": access_token,
+        **tokens,
         "message": "Token refreshed successfully"
     }), 200
 

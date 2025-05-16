@@ -61,7 +61,7 @@ def refresh_access_token(refresh_token):
         payload = verify_token(refresh_token)
         
         if payload is None:
-            logger.warning("Invalid refresh token")
+            logger.warning("Invalid or expired refresh token")
             return None
             
         if payload.get('type') != 'refresh':
@@ -69,7 +69,15 @@ def refresh_access_token(refresh_token):
             return None
             
         # Create new access token
-        access_token = generate_token(
+        new_access_token = generate_token(
+            payload['sub'], 
+            payload['email'], 
+            payload['role'], 
+            'access'
+        )
+
+        # Create new refresh token
+        new_refresh_token = generate_token(
             payload['sub'], 
             payload['email'], 
             payload['role'], 
@@ -77,7 +85,10 @@ def refresh_access_token(refresh_token):
         )
         
         logger.info(f"Refreshed access token for user {payload['sub']}")
-        return access_token
+        return {
+            'access_token': new_access_token,
+            'refresh_token': new_refresh_token
+        }
     except Exception as e:
         logger.error(f"Error refreshing token: {str(e)}")
         return None
