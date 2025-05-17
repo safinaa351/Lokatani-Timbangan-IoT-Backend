@@ -30,8 +30,7 @@ firestore_client = firestore.Client()
 # Firestore Collection
 BATCH_COLLECTION = "vegetable_batches"
 WEIGHTS_SUBCOLLECTION = "weights"
-model = YOLO('app/services/models/weights/best.pt')
-
+model = YOLO('services/models/weights/best.pt')
 
 def upload_image(file, filename, bucket_name=None):
     try:
@@ -50,6 +49,17 @@ def upload_image(file, filename, bucket_name=None):
         return signed_url
     except Exception as e:
         logger.error(f"Image upload failed: {str(e)}")
+        raise
+
+def delete_image(filename, bucket_name=None):
+    try:
+        bucket_name = bucket_name or BUCKET_NAME
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(filename)
+        blob.delete()
+        logger.info(f"Deleted image {filename} from bucket {bucket_name}")
+    except Exception as e:
+        logger.error(f"Error deleting image: {str(e)}")
         raise
 
 def initiate_batch(batch_data):
@@ -109,65 +119,69 @@ def complete_batch(batch_data):
 def identify_vegetable(image_url, batch_id=None):
     img = None
     image_array = None
-    resp = None
     results = None
+    filename = image_url.split('/')[-1].split('?')[0]  # Extract filename from URL
 
     try:
-        resp = requests.get(image_url, stream=True)
-        resp.raise_for_status()
-        image_array = np.asarray(bytearray(resp.content), dtype=np.uint8)
-        img = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+        with requests.get(image_url, stream=True) as resp:
+            resp.raise_for_status()
+            image_array = np.asarray(bytearray(resp.content), dtype=np.uint8)
+            img = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
 
-        results = model(img)[0]
+            results = model(img)[0]
 
-        detections = []
-        for det in results.boxes.data:
-            conf = float(det[4])
-            class_id = int(det[5])
-            detections.append({
-                'vegetable_type': results.names[class_id],
-                'confidence': round(conf, 2)
-            })
-
-        if not detections:
-            logger.warning("No object detected")
-            return {"status": "error", "message": "No object detected"}
-
-        detections.sort(key=lambda x: x['confidence'], reverse=True)
-        best_detection = detections[0]
-
-        if best_detection['vegetable_type'] in ["kale", "bayam merah"] and best_detection['confidence'] >= 0.7:
-            best_detection["image_url"] = image_url
-            best_detection["timestamp"] = datetime.utcnow().isoformat()
-
-            if batch_id:
-                batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
-                batch_ref.update({
-                    "vegetable_type": best_detection['vegetable_type'],
-                    "confidence": best_detection['confidence'],
-                    "image_url": image_url
+            detections = []
+            for det in results.boxes.data:
+                conf = float(det[4])
+                class_id = int(det[5])
+                detections.append({
+                    'vegetable_type': results.names[class_id],
+                    'confidence': round(conf, 2)
                 })
 
-            logger.info(f"Detected: {best_detection['vegetable_type']} with {best_detection['confidence']}")
-            return best_detection
-        else:
-            logger.info(f"Detected vegetable is not kale or bayam merah or confidence is below threshold: {best_detection['vegetable_type']}")
-            return {"status": "error", "message": "bukan kale atau bayam merah"}
+            if not detections:
+                logger.warning("No object detected")
+                delete_image(filename)  # Delete image if no object detected
+                return {"status": "error", "message": "No object detected"}
+
+            detections.sort(key=lambda x: x['confidence'], reverse=True)
+            best_detection = detections[0]
+
+            if best_detection['vegetable_type'] in ["kale", "bayam merah"] and best_detection['confidence'] >= 0.7:
+                best_detection["image_url"] = image_url
+                best_detection["timestamp"] = datetime.utcnow().isoformat()
+
+                if batch_id:
+                    batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
+                    batch_ref.update({
+                        "vegetable_type": best_detection['vegetable_type'],
+                        "confidence": best_detection['confidence'],
+                        "image_url": image_url
+                    })
+
+                logger.info(f"Detected: {best_detection['vegetable_type']} with {best_detection['confidence']}")
+                return best_detection
+            else:
+                logger.info(f"Detected vegetable is not kale or bayam merah or confidence is below threshold")
+                delete_image(filename)  # Delete image if not kale/bayam merah
+                return {"status": "error", "message": "bukan kale atau bayam merah"}
 
     except Exception as e:
         logger.error(f"Vegetable identification error: {str(e)}")
+        # Try to delete image in case of error
+        try:
+            delete_image(filename)
+        except:
+            pass
         raise
 
     finally:
-        try:
-            del img
-            del image_array
-            del resp
-            del results
-            gc.collect()
-        except:
-            pass  # biar gak error kalau ada yg belum ke-define
-    
+        # Explicitly release memory and clear PyTorch cache
+        del img
+        del image_array
+        del results
+        gc.collect()
+
 def process_rompes_weighing(file, filename, weight, user_id, notes=''):
     try:
         image_url = upload_image(file, filename, ROMPES_BUCKET_NAME)
