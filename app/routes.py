@@ -5,7 +5,7 @@ from app.validators import (
     validate_uploaded_file, validate_json_request, handle_api_exception,
     validate_numeric, validate_string
 )
-from app.jwt.jwt_middleware import token_required  # Import JWT middleware
+from app.middleware.firebase_middleware import firebase_auth_required
 
 from app.services.service import (
     upload_image,
@@ -34,7 +34,7 @@ def home():
         "version": "1.0.0"}), 200
 
 @routes.route('/api/batch/initiate', methods=['POST'])
-@token_required  # Protect with JWT
+@firebase_auth_required
 @validate_json_request(required_fields=['user_id'])
 @handle_api_exception
 def initiate_batch_tracking():
@@ -62,7 +62,7 @@ def initiate_batch_tracking():
     return jsonify(batch_info), 200
 
 @routes.route('/api/batch/complete', methods=['POST'])
-@token_required  # Protect with JWT
+@firebase_auth_required
 @validate_json_request(required_fields=['batch_id'])
 @handle_api_exception
 def finalize_batch_tracking():
@@ -81,7 +81,7 @@ def finalize_batch_tracking():
     return jsonify(batch_result), 200
 
 @routes.route('/api/ml/identify-vegetable', methods=['POST'])
-@token_required  # Protect with JWT
+@firebase_auth_required 
 @handle_api_exception
 def process_vegetable_identification():
     logger.info("Vegetable identification request received")
@@ -119,7 +119,7 @@ def process_vegetable_identification():
     return jsonify(identification_result), 200
 
 @routes.route('/api/rompes/process', methods=['POST'])
-@token_required  # Protect with JWT
+@firebase_auth_required
 @handle_api_exception
 def handle_rompes_weighing():
     logger.info("Rompes weighing request received")
@@ -180,7 +180,7 @@ def handle_rompes_weighing():
     return jsonify(result), 200
 
 @routes.route('/api/batches/history', methods=['GET'])
-@token_required  # Protect with JWT
+@firebase_auth_required
 @handle_api_exception
 def get_user_batches():
     user_id = request.args.get('user_id')
@@ -204,7 +204,7 @@ def get_user_batches():
     return jsonify({"status": "success", "batches": batches}), 200
 
 @routes.route('/api/batches/<batch_id>', methods=['GET'])
-@token_required  # Protect with JWT
+@firebase_auth_required
 @handle_api_exception
 def get_batch_details(batch_id):
     logger.info(f"Fetching details for batch: {batch_id}")

@@ -10,10 +10,19 @@ flask-backend
 │   ├── __init__.py       # Application factory
 │   ├── routes.py         # Main API routes for user interactions
 │   ├── routes_iot.py     # IoT-specific routes for device communication
+│   ├── routes_auth.py         # Authentication-specific routes for system
 │   ├── validators.py     # Request validation logic
+│   ├── jwt/             # JWT Authentication components
+│   │   ├── jwt_handler.py    # JWT token generation and validation
+│   │   └── jwt_middleware.py # JWT authentication middleware
 │   ├── services/         # Business logic and external service interactions
-│   │   ├── service.py    # Main services (Firebase, Cloud Storage, etc.)
-│   │   └── iot_service.py # IoT device services
+│   │   ├── service.py    # Main services (Firestore, Cloud Storage, etc.)
+│   │   ├── iot_service.py # IoT device services
+│   │   ├── auth_service.py # Authentication system services
+│   │   └── models/      # ML model files
+│   │       └── weights/  # Pre-trained model weights
+│   │           ├── best.pt
+│   │           └── last.pt
 ├── main.py              # Application entry point
 ├── Dockerfile           # Container configuration
 ├── cloudbuild.yaml      # Google Cloud Build config
@@ -25,12 +34,14 @@ flask-backend
 
 -   **app/__init__.py**: Initializes the Flask application and sets up the application context.
 -   **app/main.py**: The entry point of the application. It creates and starts the Flask app.
--   **app/models.py**: Defines the data models for weight data, images, and other relevant entities.
 -   **app/routes.py**: Contains the API routes and handlers for processing requests from users or external systems.
 -   **app/routes_iot.py**: Contains the API routes and handlers specifically for processing requests from IoT devices.
 -   **app/validators.py**: Contains the request validation logic for both user and IoT requests.
+-   **app/jwt/jwt_handler.py**: Handles JWT token generation, verification, and refresh operations
+-   **app/jwt/jwt_middleware.py**: Provides decorators for route protection and role-based access control
 -   **app/services/service.py**: Handles interactions with Firebase services (Authentication, Firestore, Cloud Storage) for uploading images, storing weight data, and managing weighing sessions.
 -   **app/services/iot_service.py**: Handles interactions from IoT devices to the backend, processing lightweight payloads (e.g., sensor readings, device status).
+-   **app/services/models/weights/**: Contains trained ML model weights for vegetable identification
 -   **Dockerfile**: Instructions for building the Docker image for the application.
 -   **cloudbuild.yaml**: Configuration for Google Cloud Build to automate the build and deployment process.
 -   **requirements.txt**: Lists the Python dependencies required for the project.
