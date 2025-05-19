@@ -20,12 +20,12 @@ def create_app():
     # Import routes & register blueprints
     from app.routes import routes
     from app.routes_iot import iot_routes
-    from app.routes_auth import auth_routes 
+    # from app.routes_auth import auth_routes 
     from app.firebase_auth_routes import firebase_auth
     
     app.register_blueprint(routes)
     app.register_blueprint(iot_routes)
-    app.register_blueprint(auth_routes)
+    # app.register_blueprint(auth_routes)
     app.register_blueprint(firebase_auth)
 
     return app
