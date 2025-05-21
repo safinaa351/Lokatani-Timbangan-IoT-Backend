@@ -24,3 +24,4 @@ training/
 
 #stress and load test scripts
 *.js
+load_test*
