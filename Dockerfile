@@ -21,4 +21,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "main.py"]
+CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0:8080", "main:app", "--max-requests", "100", "--max-requests-jitter", "10"]
