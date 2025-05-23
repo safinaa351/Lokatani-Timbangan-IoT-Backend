@@ -93,3 +93,28 @@ def update_device_status(device_id, status_data):
     except Exception as e:
         logger.error(f"Error updating device status: {str(e)}")
         raise
+
+def get_active_batch():
+    """Get the most recent active batch that hasn't been completed"""
+    try:
+        batch_ref = firestore_client.collection(BATCH_COLLECTION)
+        query = batch_ref.where('status', '==', 'in_progress')\
+                        .order_by('created_at', direction=firestore.Query.DESCENDING)\
+                        .limit(1)
+        
+        batches = list(query.stream())
+        
+        if not batches:
+            logger.info("No active batch found")
+            return None
+            
+        batch = batches[0]
+        batch_data = batch.to_dict()
+        batch_data['batch_id'] = batch.id
+        
+        logger.info(f"Retrieved active batch: {batch.id}")
+        return batch_data
+        
+    except Exception as e:
+        logger.error(f"Error retrieving active batch: {str(e)}")
+        raise
