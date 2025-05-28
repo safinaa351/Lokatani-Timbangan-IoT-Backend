@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 ROMPES_BUCKET_NAME = os.getenv("ROMPES_BUCKET_NAME")
-ML_SERVICE_URL = os.getenv("ML_SERVICE_URL")
+MODEL_BUCKET_NAME = os.getenv("MODEL_BUCKET_NAME", BUCKET_NAME)
 
 rompes_storage_client = storage.Client()
 storage_client = storage.Client()
@@ -30,7 +30,48 @@ firestore_client = firestore.Client()
 # Firestore Collection
 BATCH_COLLECTION = "vegetable_batches"
 WEIGHTS_SUBCOLLECTION = "weights"
-model = YOLO('app/services/models/weights/best.pt')
+
+# Global model variable
+model = None
+
+def download_model_from_gcs():
+    """Download ML model from Google Cloud Storage"""
+    global model
+    if model is not None:
+        return model
+    
+    try:
+        logger.info("Downloading ML model from Cloud Storage...")
+        
+        # Create local directory for model in /tmp (Cloud Run writable directory)
+        model_dir = "/tmp/models/weights"
+        os.makedirs(model_dir, exist_ok=True)
+        
+        # Download model file from GCS
+        bucket = storage_client.bucket(MODEL_BUCKET_NAME)
+        blob = bucket.blob("best.pt")
+        
+        local_model_path = os.path.join(model_dir, "best.pt")
+        blob.download_to_filename(local_model_path)
+        
+        logger.info(f"Model downloaded to {local_model_path}")
+        
+        # Load the model
+        model = YOLO(local_model_path)
+        logger.info("Model loaded successfully")
+        
+        return model
+        
+    except Exception as e:
+        logger.error(f"Error downloading/loading model: {str(e)}")
+        raise
+
+def get_model():
+    """Get the ML model, downloading if necessary"""
+    global model
+    if model is None:
+        model = download_model_from_gcs()
+    return model
 
 def upload_image(file, filename, bucket_name=None):
     try:
@@ -123,12 +164,15 @@ def identify_vegetable(image_url, batch_id=None):
     filename = image_url.split('/')[-1].split('?')[0]  # Extract filename from URL
 
     try:
+         # Get the model (download if not already loaded)
+        current_model = get_model()
         with requests.get(image_url, stream=True) as resp:
             resp.raise_for_status()
             image_array = np.asarray(bytearray(resp.content), dtype=np.uint8)
             img = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
 
-            results = model(img)[0]
+            # Use the downloaded model instead of the global one
+            results = current_model(img)[0]
 
             detections = []
             for det in results.boxes.data:
