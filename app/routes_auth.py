@@ -3,19 +3,14 @@ import logging
 from app.validators import (
     validate_json_request, 
     handle_api_exception,
-    validate_string,
-    validate_email,
-    validate_password
+    validate_string
 )
-from app.services.auth_service import (
-    create_user,
-    login_user,
+from app.services.user_service import (
     get_user_profile,
     update_user_profile,
-    change_password
+    set_user_role
 )
-from app.jwt.jwt_handler import generate_token, refresh_access_token
-from app.jwt.jwt_middleware import token_required
+from app.firebase_auth.firebase_middleware import firebase_token_required, admin_required
 
 auth_routes = Blueprint('auth_routes', __name__)
 
@@ -23,133 +18,8 @@ auth_routes = Blueprint('auth_routes', __name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-@auth_routes.route('/api/auth/register', methods=['POST'])
-@validate_json_request(required_fields=['email', 'password', 'name'])
-@handle_api_exception
-def register():
-    """Register a new user"""
-    data = request.json
-    logger.info(f"User registration request received for: {data.get('email')}")
-    
-    # Validate inputs
-    email_error = validate_email(data.get('email'), company_domain='lokatani.id')
-    if email_error:
-        logger.warning(f"Email validation failed: {email_error}")
-        return jsonify({"status": "error", "message": email_error}), 400
-    
-    password_error = validate_password(data.get('password'))
-    if password_error:
-        logger.warning(f"Password validation failed: {data.get('email')}")
-        return jsonify({"status": "error", "message": password_error}), 400
-    
-    name_error = validate_string(data.get('name'), 'Name')
-    if name_error:
-        logger.warning(f"Name validation failed: {name_error}")
-        return jsonify({"status": "error", "message": name_error}), 400
-    
-    # Process registration
-    result = create_user(
-        email=data.get('email'),
-        password=data.get('password'),
-        name=data.get('name'),
-        role=data.get('role', 'user')  # Default role is 'user'
-    )
-    
-    if result.get('status') == 'error':
-        logger.warning(f"Registration failed: {result.get('message')}")
-        return jsonify(result), 400
-    
-    # Generate tokens for immediate login after registration
-    try:
-        user_id = result.get('user_id')
-        email = result.get('email')
-        role = result.get('role')
-        
-        access_token = generate_token(user_id, email, role, 'access')
-        refresh_token = generate_token(user_id, email, role, 'refresh')
-        
-        # Add tokens to result
-        result['access_token'] = access_token
-        result['refresh_token'] = refresh_token
-        
-        logger.info(f"User registered successfully with tokens: {access_token}. Result: {result}")
-        return jsonify(result), 201
-    except Exception as e:
-        logger.error(f"Token generation failed: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": "Registration error"
-        }), 500
-
-@auth_routes.route('/api/auth/login', methods=['POST'])
-@validate_json_request(required_fields=['email', 'password'])
-@handle_api_exception
-def login():
-    """Login existing user"""
-    data = request.json
-    logger.info(f"Login attempt for: {data.get('email')}")
-    
-    # Process login
-    result = login_user(
-        email=data.get('email'),
-        password=data.get('password')
-    )
-    
-    if result.get('status') == 'error':
-        logger.warning(f"Login failed for {data.get('email')}: {result.get('message')}")
-        return jsonify(result), 401
-    
-    # Generate JWT tokens
-    try:
-        user_id = result.get('user_id')
-        email = result.get('email')
-        role = result.get('role')
-        
-        access_token = generate_token(user_id, email, role, 'access')
-        refresh_token = generate_token(user_id, email, role, 'refresh')
-        
-        # Add tokens to result
-        result['access_token'] = access_token
-        result['refresh_token'] = refresh_token
-        
-        logger.info(f"User logged in successfully with tokens: {user_id}. Result: {result}")
-        return jsonify(result), 200
-    except Exception as e:
-        logger.error(f"Token generation failed: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": "Authentication error"
-        }), 500
-
-@auth_routes.route('/api/auth/refresh', methods=['POST'])
-@validate_json_request(required_fields=['refresh_token'])
-@handle_api_exception
-def refresh():
-    """Refresh access token using refresh token"""
-    data = request.json
-    refresh_token = data.get('refresh_token')
-    
-    logger.info("Token refresh request received")
-    
-    # Call the modified refresh_access_token function
-    tokens = refresh_access_token(refresh_token)
-    
-    if not tokens:
-        logger.warning("Token refresh failed: invalid or expired refresh token")
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or expired refresh token"
-        }), 401
-    
-    logger.info("Access token refreshed successfully")
-    return jsonify({
-        "status": "success",
-        **tokens,
-        "message": "Token refreshed successfully"
-    }), 200
-
 @auth_routes.route('/api/auth/profile/<user_id>', methods=['GET'])
-@token_required
+@firebase_token_required
 @handle_api_exception
 def get_profile(user_id):
     """Get user profile information"""
@@ -160,9 +30,18 @@ def get_profile(user_id):
         logger.warning("Missing user_id in profile request")
         return jsonify({"status": "error", "message": "User ID is required"}), 400
     
-    # Verify the user is accessing their own profile, unless they're an admin
-    if request.user.get('user_id') != user_id and request.user.get('role') != 'admin':
-        logger.warning(f"User {request.user.get('user_id')} attempted to access profile of {user_id}")
+    # Get the authenticated user's ID from the token
+    authenticated_user_id = request.user.get('firebase_uid')
+    if not authenticated_user_id:
+         logger.error("Authenticated user ID (firebase_uid) not found on request.user.")
+         return jsonify({
+             "status": "error",
+             "message": "Authentication failed or user ID not available"
+         }), 500
+
+    # Verify the authenticated user is accessing their own profile, unless they're an admin
+    if authenticated_user_id != user_id and request.user.get('role') != 'admin':
+        logger.warning(f"User {authenticated_user_id} attempted to access profile of {user_id}")
         return jsonify({
             "status": "error",
             "message": "Unauthorized access to profile"
@@ -179,67 +58,82 @@ def get_profile(user_id):
     return jsonify(result), 200
 
 @auth_routes.route('/api/auth/profile', methods=['PUT'])
-@token_required
-@validate_json_request(required_fields=['user_id'])
+@firebase_token_required
 @handle_api_exception
 def update_profile():
-    """Update user profile information"""
-    data = request.json
-    user_id = data.get('user_id')
-    logger.info(f"Profile update request for user: {user_id}")
-    
-    # Verify the user is updating their own profile, unless they're an admin
-    if request.user.get('user_id') != user_id and request.user.get('role') != 'admin':
-        logger.warning(f"User {request.user.get('user_id')} attempted to update profile of {user_id}")
+    data = request.json or {}
+    logger.info(f"Authenticated user profile update request received. Data: {data}")
+
+    # Get the authenticated user's ID from the token
+    # This is the user whose profile will be updated
+    authenticated_user_id = request.user.get('firebase_uid')
+    if not authenticated_user_id:
+         logger.error("Authenticated user ID (firebase_uid) not found on request.user.")
+         return jsonify({
+             "status": "error",
+             "message": "Authentication failed or user ID not available"
+         }), 500
+
+    # The target user ID is ALWAYS the authenticated user's ID for this endpoint.
+    target_user_id = authenticated_user_id
+
+    # Log if a user_id was included in the body, as it's not used here
+    if 'user_id' in data:
+         logger.warning(f"User {authenticated_user_id} included 'user_id' in profile update body ({data['user_id']}). This field is ignored as this endpoint only updates the authenticated user's profile.")
+         del data['user_id'] # Remove it to be safe and keep data clean
+
+    # Check if there's any actual data to update
+    if not data:
+        logger.warning(f"Profile update request for user {target_user_id} has empty body.")
         return jsonify({
             "status": "error",
-            "message": "Unauthorized profile update"
-        }), 403
+            "message": "Request body is empty or contains no updatable fields"
+        }), 400
+
+
+    # Update profile using the authenticated user's ID and the update data
+    # The service function `update_user_profile(target_user_id, update_data)` must use `target_user_id`
+    logger.info(f"Updating profile for user ID: {target_user_id}")
+    result = update_user_profile(target_user_id, data)
+
+    if result and result.get('status') == 'error':
+        if result.get('message') == 'Profile not found':
+             logger.error(f"Authenticated user's profile not found during update for user {target_user_id}.")
+             return jsonify({"status": "error", "message": "Your user profile was not found. Please contact support."}), 404
+        # Handle other potential errors from the service (e.g., validation in service)
+        logger.error(f"Profile update failed for user {target_user_id}: {result.get('message', 'Unknown error')}")
+        return jsonify(result), 500
+
+
+    logger.info(f"Profile updated successfully for user ID: {target_user_id}")
+    return jsonify({"status": "success", "profile": result.get('profile')}), 200
+
+@auth_routes.route('/api/auth/role', methods=['PUT'])
+@admin_required
+@validate_json_request(required_fields=['user_id', 'role'])
+@handle_api_exception
+def update_user_role():
+    """Update user role (admin only)"""
+    data = request.json
+    user_id = data.get('user_id')
+    role = data.get('role')
     
-    # Update profile
-    result = update_user_profile(user_id, data)
+    logger.info(f"Role update request for user: {user_id} to role: {role}")
+    
+    # Validate role
+    valid_roles = ['user', 'admin']
+    if role not in valid_roles:
+        return jsonify({
+            "status": "error",
+            "message": f"Invalid role. Must be one of: {', '.join(valid_roles)}"
+        }), 400
+    
+    # Update role
+    result = set_user_role(user_id, role)
     
     if result.get('status') == 'error':
-        logger.warning(f"Profile update failed: {result.get('message')}")
+        logger.warning(f"Role update failed: {result.get('message')}")
         return jsonify(result), 404
     
-    logger.info(f"Profile updated for user: {user_id}")
-    return jsonify(result), 200
-
-@auth_routes.route('/api/auth/password', methods=['PUT'])
-@token_required
-@validate_json_request(required_fields=['user_id', 'current_password', 'new_password'])
-@handle_api_exception
-def update_password():
-    """Change user password"""
-    data = request.json
-    user_id = data.get('user_id')
-    logger.info(f"Password change request for user: {user_id}")
-    
-    # Verify the user is changing their own password
-    if request.user.get('user_id') != user_id:
-        logger.warning(f"User {request.user.get('user_id')} attempted to change password of {user_id}")
-        return jsonify({
-            "status": "error",
-            "message": "Unauthorized password change"
-        }), 403
-    
-    # Validate new password
-    password_error = validate_password(data.get('new_password'))
-    if password_error:
-        logger.warning(f"New password validation failed for user: {user_id}")
-        return jsonify({"status": "error", "message": password_error}), 400
-    
-    # Change password
-    result = change_password(
-        user_id=user_id,
-        current_password=data.get('current_password'),
-        new_password=data.get('new_password')
-    )
-    
-    if result.get('status') == 'error':
-        logger.warning(f"Password change failed: {result.get('message')}")
-        return jsonify(result), 400
-    
-    logger.info(f"Password changed successfully for user: {user_id}")
+    logger.info(f"Role updated for user: {user_id}")
     return jsonify(result), 200

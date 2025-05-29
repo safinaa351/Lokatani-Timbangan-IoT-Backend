@@ -2,6 +2,7 @@ from flask import Flask
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_cors import CORS
+import app.firebase_config
 
 limiter = Limiter(
     key_func=get_remote_address,

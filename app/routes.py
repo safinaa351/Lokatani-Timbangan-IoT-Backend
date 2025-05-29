@@ -5,7 +5,7 @@ from app.validators import (
     validate_uploaded_file, validate_json_request, handle_api_exception,
     validate_numeric, validate_string
 )
-from app.jwt.jwt_middleware import token_required  # Import JWT middleware
+from app.firebase_auth.firebase_middleware import firebase_token_required
 
 from app.services.service import (
     upload_image,
@@ -31,29 +31,31 @@ def home():
         "status": "success",
         "message": "Backend is running",
         "service": "IoT Vegetable Weighing System",
-        "version": "1.0.0"}), 200
+        "version": "2.0.0",
+        "auth": "Firebase Authentication"}), 200
 
 @routes.route('/api/batch/initiate', methods=['POST'])
-@token_required  # Protect with JWT
-@validate_json_request(required_fields=['user_id'])
+@firebase_token_required
 @handle_api_exception
 def initiate_batch_tracking():
-    data = request.json
+    data = request.json or {}
     logger.info(f"Batch initiation request: {data}")
     
-    jwt_user_id = request.user.get('user_id')
-    requested_user_id = data.get('user_id')
-
-    # Ensure the user is only creating batches for themselves (unless admin)
-    if jwt_user_id != requested_user_id and request.user.get('role') != 'admin':
-        logger.warning(f"User {jwt_user_id} attempted to initiate batch for {requested_user_id}")
-        return jsonify({
-            "status": "error", 
-            "message": "You can only initiate batches for your own account"
-        }), 403
+    # Get user_id directly from the authenticated token
+    authenticated_user_id = request.user.get('firebase_uid')  # This is the Firebase localId
     
+    if not authenticated_user_id:
+         # This shouldn't happen if firebase_token_required works correctly
+         logger.error("Authenticated user ID (firebase_uid) not found on request.user.")
+         return jsonify({
+             "status": "error",
+             "message": "Authentication failed or user ID not available"
+         }), 500
+    
+    logger.info(f"Authenticated user ID (firebase_uid): {authenticated_user_id}")
+
     # Force the user_id to be the authenticated user's ID for security
-    data['user_id'] = jwt_user_id
+    data['user_id'] = authenticated_user_id
     
     # Initiate batch
     batch_info = initiate_batch(data)
@@ -62,7 +64,7 @@ def initiate_batch_tracking():
     return jsonify(batch_info), 200
 
 @routes.route('/api/batch/complete', methods=['POST'])
-@token_required  # Protect with JWT
+@firebase_token_required
 @validate_json_request(required_fields=['batch_id'])
 @handle_api_exception
 def finalize_batch_tracking():
@@ -81,7 +83,7 @@ def finalize_batch_tracking():
     return jsonify(batch_result), 200
 
 @routes.route('/api/ml/identify-vegetable', methods=['POST'])
-@token_required  # Protect with JWT
+@firebase_token_required
 @handle_api_exception
 def process_vegetable_identification():
     logger.info("Vegetable identification request received")
@@ -119,39 +121,42 @@ def process_vegetable_identification():
     return jsonify(identification_result), 200
 
 @routes.route('/api/rompes/process', methods=['POST'])
-@token_required  # Protect with JWT
+@firebase_token_required
 @handle_api_exception
 def handle_rompes_weighing():
     logger.info("Rompes weighing request received")
     
-    # Validate that we have the required data
+    # Validate that we have the required data (file & weight)
+    required_form_fields = ['weight']
+    for field in required_form_fields:
+        if field not in request.form:
+            logger.warning(f"No {field} in request form data")
+            return jsonify({
+                "status": "error",
+                "message": f"{field.replace('_', ' ').title()} is required"
+            }), 400
+
     if 'file' not in request.files:
         logger.warning("No image file in request")
         return jsonify({
             "status": "error",
             "message": "No image file provided"
         }), 400
-        
-    for field in ['weight', 'user_id']:
-        if field not in request.form:
-            logger.warning(f"No {field} in request")
-            return jsonify({
-                "status": "error",
-                "message": f"{field.replace('_', ' ').title()} is required"
-            }), 400
     
     # Extract data
     file = request.files['file']
-    user_id = request.form.get('user_id')
     notes = request.form.get('notes', '')
     
-    # Verify user is processing for their own account
-    if request.user.get('user_id') != user_id and request.user.get('role') != 'admin':
-        logger.warning(f"User {request.user.get('user_id')} attempted rompes weighing for {user_id}")
-        return jsonify({
-            "status": "error", 
-            "message": "You can only process weighing for your own account"
-        }), 403
+    # Get the authenticated user's ID from the token - this is the user performing the action
+    authenticated_user_id = request.user.get('firebase_uid')
+    if not authenticated_user_id:
+         logger.error("Authenticated user ID (firebase_uid) not found on request.user.")
+         return jsonify({
+             "status": "error",
+             "message": "Authentication failed or user ID not available"
+         }), 500
+
+    logger.info(f"Rompes weighing initiated by user: {authenticated_user_id}")
     
     # Validate file
     error = validate_uploaded_file(file)
@@ -164,7 +169,7 @@ def handle_rompes_weighing():
         weight = float(request.form.get('weight'))
         if weight <= 0:
             raise ValueError("Weight must be greater than zero")
-    except ValueError as e:
+    except (ValueError, TypeError) as e:
         logger.warning(f"Weight validation failed: {str(e)}")
         return jsonify({
             "status": "error",
@@ -172,59 +177,66 @@ def handle_rompes_weighing():
         }), 400
     
     # Process rompes weighing
-    logger.info(f"Processing rompes weighing. Weight: {weight}g, User: {user_id}")
+    logger.info(f"Processing rompes weighing. Weight: {weight}g, User: {authenticated_user_id}")
     safe_filename = secure_filename(file.filename)
-    result = process_rompes_weighing(file, safe_filename, weight, user_id, notes)
+    result = process_rompes_weighing(file, safe_filename, weight, authenticated_user_id, notes)
     
     logger.info(f"Rompes weighing processed: {result}")
     return jsonify(result), 200
 
 @routes.route('/api/batches/history', methods=['GET'])
-@token_required  # Protect with JWT
+@firebase_token_required
 @handle_api_exception
 def get_user_batches():
-    user_id = request.args.get('user_id')
-    logger.info(f"Fetching batch history for user: {user_id}")
+    logger.info(f"Fetching batch history")
     
-    if not user_id:
-        logger.warning("Missing user_id in batch history request")
-        return jsonify({"status": "error", "message": "User ID is required"}), 400
-    
-    # Verify user is accessing their own batches
-    if request.user.get('user_id') != user_id and request.user.get('role') != 'admin':
-        logger.warning(f"User {request.user.get('user_id')} attempted to access batches for {user_id}")
-        return jsonify({
-            "status": "error", 
-            "message": "You can only view your own batches"
-        }), 403
+    # Get the authenticated user's ID from the token - fetching history for this user
+    authenticated_user_id = request.user.get('firebase_uid')
+    if not authenticated_user_id:
+         logger.error("Authenticated user ID (firebase_uid) not found on request.user.")
+         return jsonify({
+             "status": "error",
+             "message": "Authentication failed or user ID not available"
+         }), 500
+
+    logger.info(f"Fetching batch history for user: {authenticated_user_id}")
         
-    batches = get_user_batch_history(user_id)
-    logger.info(f"Retrieved {len(batches)} batches for user {user_id}")
+    batches = get_user_batch_history(authenticated_user_id)
+    logger.info(f"Retrieved {len(batches)} batches for user {authenticated_user_id}")
     
     return jsonify({"status": "success", "batches": batches}), 200
 
 @routes.route('/api/batches/<batch_id>', methods=['GET'])
-@token_required  # Protect with JWT
+@firebase_token_required
 @handle_api_exception
 def get_batch_details(batch_id):
     logger.info(f"Fetching details for batch: {batch_id}")
     
     if not batch_id:
         return jsonify({"status": "error", "message": "Batch ID is required"}), 400
-        
-    batch_details = get_batch_detail(batch_id)
     
-    if batch_details.get('status') == 'error':
-        logger.warning(f"Batch details request failed: {batch_details.get('message')}")
-        return jsonify(batch_details), 404
+    # Get the authenticated user's ID from the token
+    authenticated_user_id = request.user.get('firebase_uid')
+    if not authenticated_user_id:
+         logger.error("Authenticated user ID (firebase_uid) not found on request.user.")
+         return jsonify({
+             "status": "error",
+             "message": "Authentication failed or user ID not available"
+         }), 500
+
+    batch_details_result = get_batch_detail(batch_id)
+    # Check if batch exists and retrieve batch owner ID
+    batch_data = batch_details_result.get('batch')
+    if batch_details_result.get('status') == 'error' or not batch_data:
+        logger.warning(f"Batch {batch_id} not found or error retrieving details: {batch_details_result.get('message', 'Unknown error')}")
     
     # Verify user owns the batch or is admin
-    if batch_details.get('batch', {}).get('user_id') != request.user.get('user_id') and request.user.get('role') != 'admin':
-        logger.warning(f"User {request.user.get('user_id')} attempted to access batch {batch_id} belonging to another user")
+    if batch_owner_id != authenticated_user_id and request.user.get('role') != 'admin':
+        logger.warning(f"User {authenticated_user_id} attempted to access batch {batch_id} belonging to user {batch_owner_id}")
         return jsonify({
-            "status": "error", 
-            "message": "You can only view your own batches"
+            "status": "error",
+            "message": "You can only view your own batches or you are not authorized"
         }), 403
         
     logger.info(f"Retrieved details for batch: {batch_id}")
-    return jsonify(batch_details), 200
+    return jsonify({"status": "success", "batch": batch_data}), 200
