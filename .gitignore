@@ -25,3 +25,6 @@ training/
 #stress and load test scripts
 *.js
 load_test*
+login-regis-firebase/
+rate_limit*
+round_trip_time*

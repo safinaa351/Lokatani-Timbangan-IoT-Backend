@@ -191,7 +191,9 @@ def identify_vegetable(image_url, batch_id=None):
             detections.sort(key=lambda x: x['confidence'], reverse=True)
             best_detection = detections[0]
 
-            if best_detection['vegetable_type'] in ["kale", "bayam merah"] and best_detection['confidence'] >= 0.7:
+            # if best_detection['vegetable_type'] in ["kale", "bayam merah"] and best_detection['confidence'] >= 0.7:
+            if best_detection['vegetable_type'] in ["kale", "bayam merah"]:
+
                 best_detection["image_url"] = image_url
                 best_detection["timestamp"] = datetime.utcnow().isoformat()
 
