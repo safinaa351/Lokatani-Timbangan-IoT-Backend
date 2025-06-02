@@ -8,6 +8,7 @@ __pycache__/
 *.json
 /commit_msg.py
 /deploy.sh
+/commit_message.txt
 
 # Ignore Docker build cache
 *.log

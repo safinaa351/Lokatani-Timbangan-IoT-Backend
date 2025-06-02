@@ -1,9 +1,10 @@
-refactor(weighing-sessions): Unify product and rompes sessions
+chore(timestamp): Use Jakarta timezone
 
-Consolidate API endpoints and service logic for weighing activities.
+Standardize timestamp storage using the correct local timezone.
 
 Changed files:
-- app/routes.py: Replaced batch/rompes routes with unified weighing session routes.
-- app/routes_iot.py: Adapted IoT endpoints to use unified session concept.
-- app/services/iot_service.py: Updated IoT weight processing and active session retrieval for unified sessions.
-- app/services/service.py: Implemented unified service logic for weighing session initiation, completion, and history.
+- README.md: Update API documentation parameter name.
+- app/services/iot_service.py: Add and use Jakarta timezone for timestamps.
+- app/services/service.py: Add and use Jakarta timezone for timestamps.
+- app/services/user_service.py: Add and use Jakarta timezone for timestamps.
+- app/validators.py: Remove unused validation functions.
