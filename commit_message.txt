@@ -1,9 +1,9 @@
-refactor(auth): Remove custom auth components
+refactor(weighing-sessions): Unify product and rompes sessions
 
-These components are being replaced by a different authentication system.
+Consolidate API endpoints and service logic for weighing activities.
 
 Changed files:
-- .gitignore: Add *.txt to ignored files list.
-- app/jwt/jwt_handler.py: Delete custom JWT token handling logic.
-- app/jwt/jwt_middleware.py: Delete Flask middleware for JWT authentication.
-- app/services/auth_service.py: Delete custom user management service.
+- app/routes.py: Replaced batch/rompes routes with unified weighing session routes.
+- app/routes_iot.py: Adapted IoT endpoints to use unified session concept.
+- app/services/iot_service.py: Updated IoT weight processing and active session retrieval for unified sessions.
+- app/services/service.py: Implemented unified service logic for weighing session initiation, completion, and history.

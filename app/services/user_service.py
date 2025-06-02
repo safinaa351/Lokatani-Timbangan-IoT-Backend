@@ -1,5 +1,5 @@
 from google.cloud import firestore
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import logging
 import uuid
 from firebase_admin import auth
@@ -9,6 +9,9 @@ logger = logging.getLogger(__name__)
 # Firestore client
 firestore_client = firestore.Client()
 USER_COLLECTION = "users"
+
+#timezone
+jakarta_tz = timezone(timedelta(hours=7))
 
 def get_or_create_user_profile(firebase_uid, email):
     """Get existing user profile or create new one for Firebase user"""
@@ -34,7 +37,7 @@ def get_or_create_user_profile(firebase_uid, email):
             # Update document with firebase_uid
             user_doc.reference.update({
                 'firebase_uid': firebase_uid,
-                'migrated_at': datetime.utcnow()
+                'migrated_at': datetime.now(jakarta_tz)
             })
             
             user_data['firebase_uid'] = firebase_uid
@@ -89,7 +92,7 @@ def update_user_profile(user_id, profile_data):
         
         # Update only allowed fields
         if profile_data:
-            profile_data['updated_at'] = datetime.utcnow()
+            profile_data['updated_at'] = datetime.now(jakarta_tz)
             user_ref.update(profile_data)
             
             logger.info(f"Updated profile for user: {user_id}")
@@ -154,7 +157,7 @@ def set_user_role(user_id, role):
         # Update role
         user_ref.update({
             'role': role,
-            'role_updated_at': datetime.utcnow()
+            'role_updated_at': datetime.now(jakarta_tz)
         })
         
         # Optionally, set custom claims in Firebase Auth

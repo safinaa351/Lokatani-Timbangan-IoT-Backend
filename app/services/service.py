@@ -3,7 +3,7 @@ from google.cloud.storage.blob import Blob
 from dotenv import load_dotenv
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 import requests  # For ML service interaction
 import cv2
@@ -33,6 +33,9 @@ WEIGHTS_SUBCOLLECTION = "weights"
 
 # Global model variable
 model = None
+
+#timezone
+jakarta_tz = timezone(timedelta(hours=7))
 
 def download_model_from_gcs():
     """Download ML model from Google Cloud Storage"""
@@ -141,7 +144,7 @@ def identify_vegetable(image_url, batch_id=None):
             if best_detection['vegetable_type'] in ["kale", "bayam merah"]:
 
                 best_detection["image_url"] = image_url
-                best_detection["timestamp"] = datetime.utcnow().isoformat()
+                best_detection["timestamp"] = datetime.now(jakarta_tz).isoformat()
 
                 if batch_id:
                     batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
@@ -200,7 +203,7 @@ def initiate_weighing_session(session_data):
             "user_id": user_id,
             "session_type": session_type,
             "status": "in_progress",
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(jakarta_tz),
             "total_weight": 0
         })
         
@@ -367,7 +370,7 @@ def complete_weighing_session(session_data):
         
         update_payload = {
             "status": "completed",
-            "completed_at": datetime.utcnow()
+            "completed_at": datetime.now(jakarta_tz)
         }
         session_ref.update(update_payload)
         session_info = session_ref.get().to_dict()

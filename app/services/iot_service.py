@@ -1,5 +1,5 @@
 from google.cloud import firestore
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import logging
 import uuid
 
@@ -15,11 +15,14 @@ DEVICE_COLLECTION = "iot_devices"
 BATCH_COLLECTION = "vegetable_batches"
 WEIGHTS_SUBCOLLECTION = "weights"
 
+#timezone
+jakarta_tz = timezone(timedelta(hours=7))
+
 def update_device_status(device_id, status_data):
     """Update the status of an IoT device"""
     try:
         device_ref = firestore_client.collection(DEVICE_COLLECTION).document(device_id)
-        status_data["last_seen"] = datetime.utcnow()
+        status_data["last_seen"] = datetime.now(jakarta_tz)
         
         device_ref.set(status_data, merge=True)
         
@@ -82,7 +85,7 @@ def process_weight_from_device(data):
     try:
         device_id = data.get('device_id')
         weight = float(data.get('weight'))
-        session_id = data.get('session_id')  # This could be batch_id or rompes_id
+        session_id = data.get('session_id')
         
         if not session_id:
             logger.warning(f"IoT device {device_id} sent weight without session_id")
@@ -121,7 +124,7 @@ def process_weight_from_device(data):
             
             weight_entry = {
                 "weight": weight,
-                "timestamp": datetime.utcnow(),
+                "timestamp": datetime.now(jakarta_tz),
                 "device_id": device_id
             }
             

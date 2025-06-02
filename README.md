@@ -72,7 +72,7 @@ flask-backend
 - `POST /api/batch/initiate`: Start a new batch weighing session
 - `POST /api/batch/complete`: Complete a batch weighing session
 - `GET /api/batches/history`: Get batch history for a user
-- `GET /api/batches/<batch_id>`: Get detailed information about a specific batch
+- `GET /api/batches/<session_id>`: Get detailed information about a specific batch
 
 #### IoT Device
 - `POST /api/iot/weight`: Process weight data from IoT device
