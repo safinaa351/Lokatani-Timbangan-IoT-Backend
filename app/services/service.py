@@ -228,11 +228,8 @@ def identify_vegetable(image_url, batch_id=None):
         del results
         gc.collect()
 
-def process_rompes_weighing(file, filename, weight, user_id, notes=''):
+def process_rompes_weighing(weight, user_id, notes=''):
     try:
-        image_url = upload_image(file, filename, ROMPES_BUCKET_NAME)
-        logger.info(f"Rompes image uploaded with URL: {image_url}")
-
         rompes_id = str(uuid.uuid4())
         rompes_ref = firestore_client.collection('rompes_batches').document(rompes_id)
 
@@ -240,7 +237,6 @@ def process_rompes_weighing(file, filename, weight, user_id, notes=''):
             "rompes_id": rompes_id,
             "user_id": user_id,
             "weight": weight,
-            "image_url": image_url,
             "notes": notes,
             "created_at": datetime.utcnow(),
             "type": "rompes"
@@ -253,7 +249,6 @@ def process_rompes_weighing(file, filename, weight, user_id, notes=''):
             "status": "success",
             "rompes_id": rompes_id,
             "weight": weight,
-            "image_url": image_url,
             "message": "Rompes weighing process completed successfully"
         }
 

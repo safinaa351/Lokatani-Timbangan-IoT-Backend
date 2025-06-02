@@ -126,45 +126,22 @@ def process_vegetable_identification():
 def handle_rompes_weighing():
     logger.info("Rompes weighing request received")
     
-    # Validate that we have the required data (file & weight)
-    required_form_fields = ['weight']
-    for field in required_form_fields:
-        if field not in request.form:
-            logger.warning(f"No {field} in request form data")
-            return jsonify({
-                "status": "error",
-                "message": f"{field.replace('_', ' ').title()} is required"
-            }), 400
-
-    if 'file' not in request.files:
-        logger.warning("No image file in request")
+    if 'weight' not in request.form:
+        logger.warning("No weight in request form data")
         return jsonify({
             "status": "error",
-            "message": "No image file provided"
+            "message": "Weight is required"
         }), 400
-    
-    # Extract data
-    file = request.files['file']
+
     notes = request.form.get('notes', '')
-    
-    # Get the authenticated user's ID from the token - this is the user performing the action
     authenticated_user_id = request.user.get('firebase_uid')
     if not authenticated_user_id:
-         logger.error("Authenticated user ID (firebase_uid) not found on request.user.")
-         return jsonify({
-             "status": "error",
-             "message": "Authentication failed or user ID not available"
-         }), 500
+        logger.error("Authenticated user ID (firebase_uid) not found on request.user.")
+        return jsonify({
+            "status": "error",
+            "message": "Authentication failed or user ID not available"
+        }), 500
 
-    logger.info(f"Rompes weighing initiated by user: {authenticated_user_id}")
-    
-    # Validate file
-    error = validate_uploaded_file(file)
-    if error:
-        logger.warning(f"File validation failed: {error}")
-        return jsonify({"status": "error", "message": error}), 400
-    
-    # Validate weight
     try:
         weight = float(request.form.get('weight'))
         if weight <= 0:
@@ -175,12 +152,10 @@ def handle_rompes_weighing():
             "status": "error",
             "message": f"Invalid weight value: {str(e)}"
         }), 400
-    
-    # Process rompes weighing
+
     logger.info(f"Processing rompes weighing. Weight: {weight}g, User: {authenticated_user_id}")
-    safe_filename = secure_filename(file.filename)
-    result = process_rompes_weighing(file, safe_filename, weight, authenticated_user_id, notes)
-    
+    result = process_rompes_weighing(weight, authenticated_user_id, notes)
+
     logger.info(f"Rompes weighing processed: {result}")
     return jsonify(result), 200
 
