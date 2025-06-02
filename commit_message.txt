@@ -1,12 +1,7 @@
-feat(auth): Implement Firebase Authentication
+feat(rompes): Remove image upload requirement
 
-Migrate the application to use Firebase Authentication for user management and API protection.
+Simplify the rompes weighing process by only requiring weight and notes.
 
 Changed files:
-- app/__init__.py: Import firebase config.
-- app/firebase_auth/firebase_middleware.py: Add Firebase auth and admin middleware decorators.
-- app/firebase_config.py: Add Firebase Admin SDK initialization.
-- app/routes.py: Replace JWT auth with Firebase auth middleware, fetch user from auth context.
-- app/routes_auth.py: Remove JWT login/register/refresh, add role update, update profile endpoints for Firebase auth.
-- app/services/user_service.py: Add service for user profile management and migration using Firestore.
-- requirements.txt: Add firebase-admin library.
+- app/routes.py: Remove image file handling and validation
+- app/services/service.py: Update function signature and remove image upload logic
