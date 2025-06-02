@@ -143,7 +143,7 @@ def validate_api_key(api_key_name):
         return wrapper
     return decorator
 
-###auth valication###
+###auth validation###
 def validate_email(email, company_domain=None):
     """Validate email format and optionally check company domain"""
     if not isinstance(email, str) or not email.strip():

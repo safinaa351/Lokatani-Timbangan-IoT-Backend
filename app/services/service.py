@@ -103,60 +103,6 @@ def delete_image(filename, bucket_name=None):
         logger.error(f"Error deleting image: {str(e)}")
         raise
 
-def initiate_batch(batch_data):
-    try:
-        batch_id = str(uuid.uuid4())
-        user_id = batch_data.get('user_id')
-        batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
-        batch_ref.set({
-            "user_id": user_id,
-            "status": "in_progress",
-            "created_at": datetime.utcnow(),
-            "total_weight": 0
-        })
-        logger.info(f"Batch initiated: {batch_id}")
-        return {
-            "status": "initiated",
-            "batch_id": batch_id,
-            "message": "Batch tracking started"
-        }
-    except Exception as e:
-        logger.error(f"Batch initiation error: {str(e)}")
-        raise
-
-def complete_batch(batch_data):
-    try:
-        batch_id = batch_data.get('batch_id')
-        if not batch_id:
-            raise ValueError("batch_id is required.")
-
-        batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
-        batch_doc = batch_ref.get()
-        if not batch_doc.exists:
-            raise ValueError(f"Batch with ID {batch_id} does not exist.")
-
-        update_payload = {
-            "status": "completed",
-            "completed_at": datetime.utcnow()
-        }
-        batch_ref.update(update_payload)
-        batch_info = batch_ref.get().to_dict()
-        logger.info(f"Batch completed: {batch_id}")
-        return {
-            "batch_id": batch_id,
-            "user_id": batch_info.get("user_id"),
-            "status": batch_info.get("status"),
-            "created_at": batch_info.get("created_at"),
-            "completed_at": batch_info.get("completed_at"),
-            "vegetable_type": batch_info.get("vegetable_type"),
-            "total_weight": batch_info.get("total_weight"),
-            "confidence": batch_info.get("confidence"),
-            "image_url": batch_info.get("image_url")
-        }
-    except Exception as e:
-        logger.error(f"Batch completion error: {str(e)}")
-        raise
-
 def identify_vegetable(image_url, batch_id=None):
     img = None
     image_array = None
@@ -228,107 +174,219 @@ def identify_vegetable(image_url, batch_id=None):
         del results
         gc.collect()
 
-def process_rompes_weighing(weight, user_id, notes=''):
-    try:
-        rompes_id = str(uuid.uuid4())
-        rompes_ref = firestore_client.collection('rompes_batches').document(rompes_id)
+#UNIFIED WEIGHING SESSION TESTING
 
-        rompes_data = {
-            "rompes_id": rompes_id,
+def initiate_weighing_session(session_data):
+    """Unified endpoint to initiate weighing session for both product and rompes"""
+    try:
+        session_id = str(uuid.uuid4())
+        user_id = session_data.get('user_id')
+        session_type = session_data.get('session_type')  # 'product' or 'rompes'
+        
+        if session_type not in ['product', 'rompes']:
+            raise ValueError("session_type must be either 'product' or 'rompes'")
+        
+        # Add prefix to session_id based on type
+        if session_type == 'product':
+            prefixed_session_id = f"prod_{session_id}"
+            collection_name = BATCH_COLLECTION  # "vegetable_batches"
+        else:  # rompes
+            prefixed_session_id = f"rompes_{session_id}"
+            collection_name = "rompes_batches"
+        
+        # Create session in appropriate collection
+        session_ref = firestore_client.collection(collection_name).document(prefixed_session_id)
+        session_ref.set({
             "user_id": user_id,
-            "weight": weight,
-            "notes": notes,
+            "session_type": session_type,
+            "status": "in_progress",
             "created_at": datetime.utcnow(),
-            "type": "rompes"
-        }
-
-        rompes_ref.set(rompes_data)
-        logger.info(f"Rompes data saved with ID: {rompes_id}")
-
+            "total_weight": 0
+        })
+        
+        logger.info(f"Weighing session initiated: {prefixed_session_id} (type: {session_type})")
+        
         return {
-            "status": "success",
-            "rompes_id": rompes_id,
-            "weight": weight,
-            "message": "Rompes weighing process completed successfully"
+            "status": "initiated",
+            "session_id": prefixed_session_id,
+            "session_type": session_type,
+            "message": f"{session_type.capitalize()} weighing session started"
         }
-
+        
     except Exception as e:
-        logger.error(f"Error in rompes weighing process: {str(e)}")
+        logger.error(f"Session initiation error: {str(e)}")
         raise
 
-def get_user_batch_history(user_id):
-    """Get batch history for a specific user"""
+def get_user_weighing_history(user_id):
+    """Get combined weighing history from both collections"""
     try:
-        logger.info(f"Retrieving batch history for user: {user_id}")
-        batch_ref = firestore_client.collection(BATCH_COLLECTION)
-        query = batch_ref.where('user_id', '==', user_id).order_by('created_at', direction=firestore.Query.DESCENDING)
+        logger.info(f"Retrieving weighing history for user: {user_id}")
         
-        batches = []
-        for doc in query.stream():
-            batch_data = doc.to_dict()
-            batch_data['batch_id'] = doc.id
+        all_sessions = []
+        
+        # Get product batches
+        product_ref = firestore_client.collection(BATCH_COLLECTION)
+        product_query = product_ref.where('user_id', '==', user_id).order_by('created_at', direction=firestore.Query.DESCENDING)
+        
+        for doc in product_query.stream():
+            session_data = doc.to_dict()
+            session_data['session_id'] = doc.id
+            session_data['session_type'] = 'product'
             
-            # Format timestamp for display
-            if 'created_at' in batch_data and batch_data['created_at']:
-                created_at = batch_data['created_at']
-                batch_data['formatted_date'] = created_at.strftime('%A, %d-%m-%Y')
-                
-            # Include only needed fields for the list view
-            batches.append({
-                'batch_id': doc.id,
-                'vegetable_type': batch_data.get('vegetable_type', 'Unknown'),
-                'total_weight': batch_data.get('total_weight', 0),
-                'image_url': batch_data.get('image_url', ''),
-                'formatted_date': batch_data.get('formatted_date', ''),
-                'status': batch_data.get('status', '')
+            # Format timestamp
+            if 'created_at' in session_data and session_data['created_at']:
+                session_data['formatted_date'] = session_data['created_at'].strftime('%A, %d-%m-%Y')
+            
+            all_sessions.append({
+                'session_id': doc.id,
+                'session_type': 'product',
+                'vegetable_type': session_data.get('vegetable_type', 'Unknown'),
+                'total_weight': session_data.get('total_weight', 0),
+                'image_url': session_data.get('image_url', ''),
+                'formatted_date': session_data.get('formatted_date', ''),
+                'status': session_data.get('status', ''),
+                'notes': session_data.get('notes', '')
             })
+        
+        # Get rompes batches
+        rompes_ref = firestore_client.collection('rompes_batches')
+        rompes_query = rompes_ref.where('user_id', '==', user_id).order_by('created_at', direction=firestore.Query.DESCENDING)
+        
+        for doc in rompes_query.stream():
+            session_data = doc.to_dict()
+            session_data['session_id'] = doc.id
+            session_data['session_type'] = 'rompes'
             
-        logger.info(f"Found {len(batches)} batches for user {user_id}")
-        return batches
+            # Format timestamp
+            if 'created_at' in session_data and session_data['created_at']:
+                session_data['formatted_date'] = session_data['created_at'].strftime('%A, %d-%m-%Y')
+            
+            all_sessions.append({
+                'session_id': doc.id,
+                'session_type': 'rompes',
+                'vegetable_type': 'Rompes',  # Fixed type for rompes
+                'total_weight': session_data.get('total_weight', 0),
+                'image_url': session_data.get('image_url', ''),
+                'formatted_date': session_data.get('formatted_date', ''),
+                'status': session_data.get('status', ''),
+                'notes': session_data.get('notes', '')
+            })
+        
+        # Sort all sessions by creation date (most recent first)
+        all_sessions.sort(key=lambda x: x.get('formatted_date', ''), reverse=True)
+        
+        logger.info(f"Found {len(all_sessions)} total weighing sessions for user {user_id}")
+        return all_sessions
         
     except Exception as e:
-        logger.error(f"Error retrieving batch history: {str(e)}")
+        logger.error(f"Error retrieving weighing history: {str(e)}")
         raise
 
-def get_batch_detail(batch_id):
-    """Get detailed information about a specific batch"""
+def get_weighing_session_detail(session_id):
+    """Get detailed information about a specific weighing session"""
     try:
-        logger.info(f"Retrieving details for batch: {batch_id}")
-        batch_ref = firestore_client.collection(BATCH_COLLECTION).document(batch_id)
-        batch_doc = batch_ref.get()
+        logger.info(f"Retrieving details for session: {session_id}")
         
-        if not batch_doc.exists:
-            logger.warning(f"Batch {batch_id} not found")
+        # Determine session type and collection from prefix
+        if session_id.startswith('prod_'):
+            collection_name = BATCH_COLLECTION
+            session_type = 'product'
+        elif session_id.startswith('rompes_'):
+            collection_name = 'rompes_batches'
+            session_type = 'rompes'
+        else:
+            # Handle legacy IDs without prefix (assume product for backward compatibility)
+            collection_name = BATCH_COLLECTION
+            session_type = 'product'
+        
+        session_ref = firestore_client.collection(collection_name).document(session_id)
+        session_doc = session_ref.get()
+        
+        if not session_doc.exists:
+            logger.warning(f"Session {session_id} not found")
             return {
                 "status": "error",
-                "message": "Batch not found"
+                "message": "Weighing session not found"
             }
-            
-        batch_data = batch_doc.to_dict()
-        batch_data['batch_id'] = batch_id
+        
+        session_data = session_doc.to_dict()
+        session_data['session_id'] = session_id
+        session_data['session_type'] = session_type
         
         # Format timestamps
         for time_field in ['created_at', 'completed_at']:
-            if time_field in batch_data and batch_data[time_field]:
-                batch_data[f'formatted_{time_field}'] = batch_data[time_field].strftime('%A, %d-%m-%Y %H:%M:%S')
+            if time_field in session_data and session_data[time_field]:
+                session_data[f'formatted_{time_field}'] = session_data[time_field].strftime('%A, %d-%m-%Y %H:%M:%S')
         
-        # Get individual weights in this batch
+        # Get individual weights for product sessions (rompes might not have subcollection)
         weights = []
-        weights_ref = batch_ref.collection(WEIGHTS_SUBCOLLECTION)
-        for weight_doc in weights_ref.order_by('timestamp').stream():
-            weight_data = weight_doc.to_dict()
-            if 'timestamp' in weight_data:
-                weight_data['formatted_time'] = weight_data['timestamp'].strftime('%H:%M:%S')
-            weights.append(weight_data)
-            
-        batch_data['weights'] = weights
-        logger.info(f"Retrieved batch {batch_id} with {len(weights)} weight entries")
+        if session_type == 'product':
+            weights_ref = session_ref.collection(WEIGHTS_SUBCOLLECTION)
+            for weight_doc in weights_ref.order_by('timestamp').stream():
+                weight_data = weight_doc.to_dict()
+                if 'timestamp' in weight_data:
+                    weight_data['formatted_time'] = weight_data['timestamp'].strftime('%H:%M:%S')
+                weights.append(weight_data)
+        
+        session_data['weights'] = weights
+        logger.info(f"Retrieved session {session_id} with {len(weights)} weight entries")
         
         return {
             "status": "success",
-            "batch": batch_data
+            "session": session_data
         }
         
     except Exception as e:
-        logger.error(f"Error retrieving batch details: {str(e)}")
+        logger.error(f"Error retrieving session details: {str(e)}")
+        raise
+
+def complete_weighing_session(session_data):
+    """Complete a weighing session (works for both product and rompes)"""
+    try:
+        session_id = session_data.get('session_id')
+        if not session_id:
+            raise ValueError("session_id is required.")
+        
+        # Determine collection from prefix
+        if session_id.startswith('prod_'):
+            collection_name = BATCH_COLLECTION
+            session_type = 'product'
+        elif session_id.startswith('rompes_'):
+            collection_name = 'rompes_batches'
+            session_type = 'rompes'
+        else:
+            # Handle legacy IDs
+            collection_name = BATCH_COLLECTION
+            session_type = 'product'
+        
+        session_ref = firestore_client.collection(collection_name).document(session_id)
+        session_doc = session_ref.get()
+        
+        if not session_doc.exists:
+            raise ValueError(f"Session with ID {session_id} does not exist.")
+        
+        update_payload = {
+            "status": "completed",
+            "completed_at": datetime.utcnow()
+        }
+        session_ref.update(update_payload)
+        session_info = session_ref.get().to_dict()
+        
+        logger.info(f"Session completed: {session_id}")
+        
+        return {
+            "session_id": session_id,
+            "session_type": session_type,
+            "user_id": session_info.get("user_id"),
+            "status": session_info.get("status"),
+            "created_at": session_info.get("created_at"),
+            "completed_at": session_info.get("completed_at"),
+            "vegetable_type": session_info.get("vegetable_type"),
+            "total_weight": session_info.get("total_weight"),
+            "confidence": session_info.get("confidence"),
+            "image_url": session_info.get("image_url")
+        }
+        
+    except Exception as e:
+        logger.error(f"Session completion error: {str(e)}")
         raise
