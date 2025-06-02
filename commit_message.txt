@@ -1,7 +1,9 @@
-feat(rompes): Remove image upload requirement
+refactor(auth): Remove custom auth components
 
-Simplify the rompes weighing process by only requiring weight and notes.
+These components are being replaced by a different authentication system.
 
 Changed files:
-- app/routes.py: Remove image file handling and validation
-- app/services/service.py: Update function signature and remove image upload logic
+- .gitignore: Add *.txt to ignored files list.
+- app/jwt/jwt_handler.py: Delete custom JWT token handling logic.
+- app/jwt/jwt_middleware.py: Delete Flask middleware for JWT authentication.
+- app/services/auth_service.py: Delete custom user management service.
