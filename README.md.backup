@@ -1,0 +1,252 @@
+# Lokatani IoT Weight and Image Management Backend
+
+Backend API for Lokatani's IoT-based smart scales. This service handles receiving weight and image data from IoT devices, storing them securely in Google Cloud Platform (GCP) services, managing weighing sessions (both standard product and 'rompes' type), providing a user API authenticated via Firebase, and performing ML-based vegetable identification.
+
+Built with Flask, Gunicorn, and leveraging Firebase Authentication, Google Cloud Firestore, and Google Cloud Storage. Designed for deployment on Google Cloud Run.
+
+## ✨ Features
+
+*   **IoT Data Ingestion:** Receive weight data and device status updates from IoT scales.
+*   **Unified Weighing Sessions:** Support for standard product weighing and special 'rompes' sessions, managed within Firestore.
+*   **Image Upload & Storage:** Securely upload images (via user API) and store them in Google Cloud Storage.
+*   **Firebase Authentication:** Secure user access to non-IoT API endpoints.
+*   **User Profile Management:** Store and retrieve user profiles in Firestore.
+*   **ML Vegetable Identification:** Process uploaded images using a local YOLO model (downloaded from GCS) to identify vegetables.
+*   **Weighing Session Management:** API endpoints for initiating, completing, viewing history, and getting details of weighing sessions for authenticated users.
+*   **Rate Limiting:** Protect API endpoints from excessive requests.
+*   **CORS Enabled:** Allow frontend applications to access the API from different origins.
+*   **Google Cloud Integration:** Seamless integration with Firestore, Cloud Storage, Cloud Build, and Cloud Run.
+*   **Jakarta Timezone Standard:** Timestamps are standardized using the Jakarta timezone (UTC+7).
+
+## 📁 Project Structure
+
+```
+./
+├── app/                    # Core application logic
+│   ├── __init__.py       # Application factory, config (CORS, Limiter)
+│   ├── routes.py         # Main API routes (ML, Weighing Sessions)
+│   ├── routes_iot.py     # IoT-specific routes (Weight, Status, Active Session)
+│   ├── routes_auth.py    # Authentication and User Profile routes
+│   ├── validators.py     # Request validation logic and decorators
+│   ├── firebase_config.py # Firebase Admin SDK initialization
+│   ├── firebase_auth/    # Firebase Authentication middleware
+│   │   └── firebase_middleware.py # Decorators for token validation and role checks
+│   └── services/         # Business logic and external service interactions
+│       ├── service.py    # Main services (GCS, Firestore, ML Model loading)
+│       ├── iot_service.py # IoT device data processing
+│       └── user_service.py # User profile management (Firestore, Firebase Auth)
+├── main.py              # Application entry point (loads dotenv, creates app)
+├── Dockerfile           # Container configuration for deployment
+├── requirements.txt     # Python dependencies
+├── cloudbuild.yaml      # Google Cloud Build config for CI/CD
+├── deploy.sh            # Simple script for building and deploying to Cloud Run
+├── firebase-adminsdk.json # Example Firebase Admin SDK key (replace with your own)
+├── cloud-storage-key.json # Example Google Cloud Storage key (often same as Admin key)
+├── .gitignore           # Specifies intentionally untracked files
+└── README.md            # Project documentation (this file)
+```
+
+### Description of Key Files and Directories
+
+*   **`app/`**: Contains all the Flask application code.
+*   **`app/__init__.py`**: Sets up the Flask application instance, initializes extensions like CORS and Limiter, and registers blueprints for different route groups.
+*   **`app/routes.py`**: Defines API endpoints for general application features like ML identification and user-facing weighing session interactions.
+*   **`app/routes_iot.py`**: Defines API endpoints specifically for communication with IoT devices.
+*   **`app/routes_auth.py`**: Defines API endpoints for user authentication (profile management, role assignment - though not all auth features are necessarily implemented here, relies heavily on Firebase Auth SDK).
+*   **`app/validators.py`**: Contains utility functions and decorators for validating incoming request data (JSON payload, file uploads) and handling API exceptions. Includes API Key validation.
+*   **`app/firebase_config.py`**: Initializes the Firebase Admin SDK required for interacting with Firebase services like Auth and Firestore from the backend.
+*   **`app/firebase_auth/firebase_middleware.py`**: Contains Flask decorators (`@firebase_token_required`, `@admin_required`) to protect routes and extract user information from Firebase ID tokens.
+*   **`app/services/`**: Houses the business logic and functions that interact with external services (Firestore, Cloud Storage, ML Model).
+*   **`app/services/service.py`**: Handles interactions with Cloud Storage (image upload/delete), Firestore (batch/session data), and manages the download and loading of the ML model.
+*   **`app/services/iot_service.py`**: Contains the logic for processing weight data and device status updates received from IoT devices and interacting with Firestore sessions.
+*   **`app/services/user_service.py`**: Manages user profiles in Firestore, including getting/creating profiles based on Firebase UID/email and updating profile information.
+*   **`main.py`**: The primary entry point; loads environment variables and runs the Flask app using Gunicorn (as specified in `Dockerfile`).
+*   **`Dockerfile`**: Defines the steps to build a Docker image for the application, including installing dependencies and setting the startup command.
+*   **`requirements.txt`**: Lists all Python libraries required by the project.
+*   **`cloudbuild.yaml`**: Configuration file for Google Cloud Build to automate the build and deployment pipeline.
+*   **`deploy.sh`**: A shell script to build the Docker image, tag it, push it to Google Artifact Registry, and deploy it to Google Cloud Run using `gcloud`.
+
+## ✅ Prerequisites
+
+Before setting up and running this project, ensure you have the following installed:
+
+*   **Python 3.10+**
+*   **pip** (Python package installer)
+*   **Git**
+*   **Docker** (Optional, but recommended for local testing and required for deployment)
+*   **Google Cloud SDK (`gcloud`)**: Configured and authenticated with your GCP account.
+*   **Firebase Project:** A Firebase project set up with Authentication and Firestore enabled.
+*   **Google Cloud Project:** A GCP project with Cloud Storage enabled.
+*   **Service Account Key:** A JSON service account key file with appropriate permissions to access Firebase Auth, Firestore, and Cloud Storage within your project.
+
+## 🛠️ Setup and Installation
+
+1.  **Clone the Repository:**
+    ```bash
+    git clone <repository-url>
+    cd <repository-directory>
+    ```
+
+2.  **Install Dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3.  **Obtain Service Account Key:**
+    *   Go to your Google Cloud Console.
+    *   Navigate to "IAM & Admin" -> "Service Accounts".
+    *   Select the service account you want to use (or create a new one). This account needs permissions for:
+        *   Firebase Authentication (`Firebase Authentication Admin`)
+        *   Firestore (`Cloud Firestore User` or similar)
+        *   Cloud Storage (`Storage Admin` or similar)
+    *   Go to the "Keys" tab and click "Add Key" -> "Create new key".
+    *   Select "JSON" as the key type and click "Create". A JSON file will be downloaded.
+    *   Place this JSON file in your project directory (e.g., name it `service-account-key.json`). **Important:** Add this file name to your `.gitignore` to prevent committing sensitive credentials.
+
+4.  **Set up Environment Variables:**
+    *   Create a `.env` file in the root of the project directory.
+    *   Add the following variables, replacing the placeholders with your actual values:
+        ```env
+        # Path to your downloaded service account key file
+        GOOGLE_APPLICATION_CREDENTIALS=./service-account-key.json
+        FIREBASE_ADMIN_CREDENTIALS=./service-account-key.json # Often same as above, or specify if using a different key for firebase_admin.initialize_app
+
+        # Google Cloud Storage Bucket Names
+        GCS_BUCKET_NAME=your-main-gcs-bucket-name # For product images/data
+        ROMPES_BUCKET_NAME=your-rompes-gcs-bucket-name # For rompes images/data
+        MODEL_BUCKET_NAME=your-model-gcs-bucket-name # Bucket where the ML model (best.pt) is stored (can be same as GCS_BUCKET_NAME)
+
+        # API Key for IoT Devices
+        IOT_API_KEY=your-secret-iot-api-key
+        ```
+    *   The application uses `python-dotenv` to load these variables automatically when `main.py` or `app/__init__.py` is run.
+
+## ⚙️ Configuration
+
+*   **Firebase Admin SDK:** The `app/firebase_config.py` file initializes the Firebase Admin SDK. It first checks the `FIREBASE_ADMIN_CREDENTIALS` environment variable for a path to a service account key JSON file. If not found, it attempts to use default Google Cloud credentials (suitable when deployed on GCP services like Cloud Run).
+*   **Google Cloud Services:** The `app/services/service.py` file explicitly sets the `GOOGLE_APPLICATION_CREDENTIALS` environment variable using `os.getenv`. Ensure this points to your service account key file. It also reads `GCS_BUCKET_NAME`, `ROMPES_BUCKET_NAME`, and `MODEL_BUCKET_NAME` from environment variables to configure Cloud Storage access.
+*   **IoT API Key:** The `IOT_API_KEY` environment variable is used in `app/validators.py` within the `validate_api_key` decorator to protect specific IoT endpoints. Ensure the API key is set and transmitted by your IoT devices in the `X-API-Key` header.
+*   **ML Model:** The ML model (`best.pt`) is expected to be stored in the Google Cloud Storage bucket specified by `MODEL_BUCKET_NAME`. The `app/services/service.py` downloads this model to the `/tmp` directory (writable on Cloud Run) when the application starts or the model is first needed.
+
+## 🚀 Running Locally
+
+1.  Ensure you have completed the Setup and Configuration steps, including creating the `.env` file and setting up service account credentials.
+2.  Run the application using the Python interpreter:
+    ```bash
+    python main.py
+    ```
+    This will start the Flask development server.
+3.  Alternatively, to run with Gunicorn locally (closer to production environment):
+    ```bash
+    gunicorn -w 2 -b 0.0.0.0:8080 main:app
+    ```
+    The server will typically run on `http://localhost:8080`.
+
+## 🌐 API Endpoints
+
+All API endpoints are prefixed with `/api/`.
+
+### Authentication & User Profile (`/api/auth/`)
+
+*   `GET /api/auth/profile/<user_id>`: Get user profile by Firebase UID. Requires Firebase Token.
+*   `PUT /api/auth/profile`: Update the authenticated user's profile. Requires Firebase Token.
+    *   Request Body (JSON): `{ "name": "New Name", ... }` (Allowed fields can be updated)
+*   `PUT /api/auth/password`: Change the authenticated user's password (Note: Firebase Auth handles password changes client-side; this endpoint might be for profile fields related to password management or a placeholder). *Verification based on code: This endpoint exists in the old README but not in the provided routes_auth.py. It should be removed or marked as TBD/placeholder.* Let's keep the ones found in code.
+    *   *Correction*: Only `/api/auth/profile/<user_id>` and `/api/auth/profile` are present in `routes_auth.py`. The password endpoint should be removed from the list.
+
+### Weighing Session Management (`/api/weighing/`)
+
+*   `GET /api/weighing/history`: Get weighing session history (product and rompes) for the authenticated user. Requires Firebase Token.
+*   `GET /api/weighing/<session_id>`: Get detailed information about a specific weighing session. Requires Firebase Token.
+
+### IoT Device Communication (`/api/iot/`)
+
+*   `POST /api/iot/weight`: Process weight data sent from an IoT device. Requires `X-API-Key` header.
+    *   Request Body (JSON): `{ "device_id": "...", "weight": ..., "session_id": "..." }`
+*   `GET /api/iot/active-session`: Request the most recent active weighing session details. Requires `X-API-Key` header.
+*   `POST /api/iot/status`: Update the status of an IoT device. Requires `X-API-Key` header.
+    *   Request Body (JSON): `{ "device_id": "...", "status": "...", ... }` (Other status fields can be included)
+
+### Image Processing & ML (`/api/ml/`, `/api/rompes/`)
+
+*   `POST /api/ml/identify-vegetable`: Upload an image file and identify vegetables using the ML model. Can optionally associate with a session ID. Requires Firebase Token.
+    *   Request (multipart/form-data):
+        *   `file`: The image file.
+        *   `session_id` (optional): The ID of the weighing session to associate the image with.
+*   `POST /api/rompes/process`: Process a rompes weighing event, typically involving an image. Requires Firebase Token.
+    *   Request (multipart/form-data):
+        *   `file`: The image file.
+        *   `session_id`: The ID of the rompes session.
+        *   `weight`: The recorded rompes weight.
+
+### General
+
+*   `GET /`: Basic health check endpoint.
+
+## 🔒 Authentication & Authorization
+
+*   **Firebase Authentication:** User-facing endpoints (e.g., profile, weighing history, ML processing) require a valid Firebase ID token in the `Authorization: Bearer <token>` header. The `@firebase_token_required` decorator in `app/firebase_auth/firebase_middleware.py` handles token verification and attaches user information to the request context.
+*   **API Key Authorization:** IoT-specific endpoints (`/api/iot/*`) are protected by an API key (`IOT_API_KEY`). Devices must send this key in the `X-API-Key` header. The `@validate_api_key` decorator enforces this.
+*   **Role-Based Authorization:** The `app/firebase_auth/firebase_middleware.py` includes an `@admin_required` decorator, although it doesn't appear to be currently applied to any of the listed public endpoints. This decorator can be used to restrict access to specific routes based on a 'role' field in the user's Firestore profile.
+
+## ☁️ Deployment
+
+This application is designed for serverless deployment on Google Cloud Run using Docker containers and automated builds via Google Cloud Build.
+
+1.  **Containerization:** The `Dockerfile` defines how to build the application's Docker image. It installs Python dependencies, including system libraries required for libraries like Pillow and OpenCV. It specifies `gunicorn` as the entrypoint for running the Flask application.
+2.  **Google Cloud Build:** The `cloudbuild.yaml` file configures Cloud Build to:
+    *   Build the Docker image based on the `Dockerfile`.
+    *   Tag the image appropriately for Google Artifact Registry (or Container Registry).
+    *   Push the built image to Artifact Registry.
+    *   Deploy the new image to the specified Google Cloud Run service.
+    *   *Note:* Ensure your Cloud Build service account has permissions to build images, push to Artifact Registry, and deploy to Cloud Run.
+3.  **Deployment Script:** The `deploy.sh` script provides a simple command-line interface to trigger the build and deployment process locally using Docker and `gcloud` commands.
+    *   Modify the constants at the top of `deploy.sh` (`IMAGE_NAME`, `TAG`, `REGION`, `REPO`, `SERVICE_NAME`) to match your desired GCP project and service configuration.
+    *   Run the script from the project root: `./deploy.sh`
+4.  **Cloud Run Configuration:** When deploying to Cloud Run via `gcloud run deploy` (or Cloud Build), ensure you configure:
+    *   The correct container image path from Artifact Registry.
+    *   Environment variables (`GOOGLE_APPLICATION_CREDENTIALS`, `FIREBASE_ADMIN_CREDENTIALS`, `GCS_BUCKET_NAME`, `ROMPES_BUCKET_NAME`, `MODEL_BUCKET_NAME`, `IOT_API_KEY`). You can configure these directly in the Cloud Run service settings or via `gcloud` command flags (`--set-env-vars`). It is recommended to store sensitive values (API keys, credential paths) securely in Cloud Secret Manager and access them from Cloud Run.
+    *   Resource allocation (CPU, Memory) - consider the ML model loading which might require more memory and CPU.
+    *   Scaling settings.
+
+## 📦 Dependencies
+
+The project relies on the following key Python libraries (as listed in `requirements.txt`):
+
+*   `flask`: Web framework
+*   `gunicorn`: WSGI HTTP Server for production deployment
+*   `google-cloud-storage`: Interact with Google Cloud Storage
+*   `google-cloud-firestore`: Interact with Google Cloud Firestore
+*   `firebase-admin`: Firebase Admin SDK for Auth, Firestore, etc.
+*   `python-dotenv`: Load environment variables from a `.env` file
+*   `Pillow`: Image processing library (dependency for others like OpenCV/YOLO)
+*   `requests`: Make HTTP requests (used for potential external service calls, though ML is local)
+*   `flask-limiter`: Add rate limiting to routes
+*   `PyJWT`: (Often used with auth, included via dependencies)
+*   `flask_cors`: Enable Cross-Origin Resource Sharing
+*   `numpy`: Numerical operations (dependency for ML libraries)
+*   `opencv-python-headless`: OpenCV library (headless version for servers)
+*   `ultralytics`: Library for YOLO models
+*   `torch`, `torchvision`: PyTorch ML framework (CPU-only versions specified)
+
+## 👋 Contributing
+
+Contributions are welcome! Please follow standard practices:
+
+1.  Fork the repository.
+2.  Create a new branch for your feature or bugfix.
+3.  Commit your changes with clear, concise commit messages (Conventional Commits style preferred).
+4.  Push your branch and open a Pull Request against the `main` branch.
+
+## 📄 License
+
+This project is licensed under the MIT License. See the LICENSE file for details.
+
+## 🐛 Troubleshooting
+
+*   **Missing Environment Variables:** Ensure your `.env` file is correctly configured and that `GOOGLE_APPLICATION_CREDENTIALS` and other required variables are set either locally or in your deployment environment.
+*   **Firebase/GCP Credentials:** Double-check that your service account key has the necessary permissions for Firebase Authentication, Firestore, and Cloud Storage. Ensure the `GOOGLE_APPLICATION_CREDENTIALS` path is correct.
+*   **ML Model Loading:** If the ML endpoints fail, verify that the `best.pt` model file exists in the specified `MODEL_BUCKET_NAME` bucket and that the service account has permission to read it.
+*   **IoT API Key:** Ensure IoT devices are sending the `X-API-Key` header with the correct `IOT_API_KEY` value.
+*   **Container Issues:** If running locally with Docker or deploying via Cloud Run, ensure Docker is running and that the container builds successfully. Check container logs for runtime errors.
+*   **Jakarta Timezone:** Be aware that timestamps stored in Firestore will use the Jakarta timezone (UTC+7). Clients retrieving this data should handle timezone conversions as needed.

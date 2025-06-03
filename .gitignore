@@ -9,6 +9,8 @@ __pycache__/
 /commit_msg.py
 /deploy.sh
 /commit_message.txt
+/readme_generator.py
+/readme.md.backup
 
 # Ignore Docker build cache
 *.log
