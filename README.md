@@ -108,12 +108,11 @@ All API endpoints are prefixed with `/api/`.
 
 *   `POST /api/iot/weight`: Endpoint for IoT devices to send weight measurement data. Requires API Key authorization.
 *   `GET /api/iot/active-session`: Endpoint for IoT devices to request details about the most recent active weighing session assigned. Requires API Key authorization.
-*   `POST /api/iot/status`: Endpoint for IoT devices to send status updates (e.g., battery level, connectivity). Requires API Key authorization.
+*   `POST /api/iot/status`: Endpoint for IoT devices to send status updates (e.g., connectivity). Requires API Key authorization.
 
-### Image Processing & ML (`/api/ml/`, `/api/rompes/`)
+### Image Processing & ML (`/api/ml/`)
 
 *   `POST /api/ml/identify-vegetable`: Upload an image file and trigger ML-based vegetable identification. Can optionally link the image and result to a weighing session. Requires user authentication.
-*   `POST /api/rompes/process`: Endpoint specifically for processing rompes weighing events, including image upload and linking to a rompes session. Requires user authentication.
 
 ### General
 
