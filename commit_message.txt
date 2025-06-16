@@ -1,10 +1,8 @@
-chore(timestamp): Use Jakarta timezone
+docs(README): Overhaul README documentation
 
-Standardize timestamp storage using the correct local timezone.
+Provide detailed information about the project, setup, and usage.
 
 Changed files:
-- README.md: Update API documentation parameter name.
-- app/services/iot_service.py: Add and use Jakarta timezone for timestamps.
-- app/services/service.py: Add and use Jakarta timezone for timestamps.
-- app/services/user_service.py: Add and use Jakarta timezone for timestamps.
-- app/validators.py: Remove unused validation functions.
+- .gitignore: Ignore new README-related files
+- README.md: Rewrote content with detailed sections
+- README.md.backup: Added backup of old README

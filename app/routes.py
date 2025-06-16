@@ -163,6 +163,22 @@ def initiate_weighing():
             "message": "session_type must be either 'product' or 'rompes'"
         }), 400
     
+    # For rompes sessions, vegetable_type is required
+    if session_type == 'rompes':
+        vegetable_type = data.get('vegetable_type')
+        if not vegetable_type:
+            return jsonify({
+                "status": "error",
+                "message": "vegetable_type is required for rompes sessions"
+            }), 400
+        
+        # Validate vegetable_type
+        if vegetable_type not in ['kale', 'bayam merah']:
+            return jsonify({
+                "status": "error",
+                "message": "vegetable_type must be either 'kale' or 'bayam merah'"
+            }), 400
+    
     logger.info(f"Authenticated user ID (firebase_uid): {authenticated_user_id}")
 
     # Force the user_id to be the authenticated user's ID for security

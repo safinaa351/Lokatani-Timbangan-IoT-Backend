@@ -185,6 +185,7 @@ def initiate_weighing_session(session_data):
         session_id = str(uuid.uuid4())
         user_id = session_data.get('user_id')
         session_type = session_data.get('session_type')  # 'product' or 'rompes'
+        vegetable_type = session_data.get('vegetable_type')  # New field for rompes
         
         if session_type not in ['product', 'rompes']:
             raise ValueError("session_type must be either 'product' or 'rompes'")
@@ -197,24 +198,38 @@ def initiate_weighing_session(session_data):
             prefixed_session_id = f"rompes_{session_id}"
             collection_name = "rompes_batches"
         
-        # Create session in appropriate collection
-        session_ref = firestore_client.collection(collection_name).document(prefixed_session_id)
-        session_ref.set({
+        # Prepare session document
+        session_doc = {
             "user_id": user_id,
             "session_type": session_type,
             "status": "in_progress",
             "created_at": datetime.now(jakarta_tz),
             "total_weight": 0
-        })
+        }
+        
+        # Add vegetable_type for rompes sessions
+        if session_type == 'rompes' and vegetable_type:
+            session_doc["vegetable_type"] = vegetable_type
+            # session_doc["confidence"] = 1.0  # Manual selection = 100% confidence
+        
+        # Create session in appropriate collection
+        session_ref = firestore_client.collection(collection_name).document(prefixed_session_id)
+        session_ref.set(session_doc)
         
         logger.info(f"Weighing session initiated: {prefixed_session_id} (type: {session_type})")
         
-        return {
+        response = {
             "status": "initiated",
             "session_id": prefixed_session_id,
             "session_type": session_type,
             "message": f"{session_type.capitalize()} weighing session started"
         }
+        
+        # Include vegetable_type in response for rompes
+        if session_type == 'rompes' and vegetable_type:
+            response["vegetable_type"] = vegetable_type
+        
+        return response
         
     except Exception as e:
         logger.error(f"Session initiation error: {str(e)}")
