@@ -1,8 +1,7 @@
-docs(README): Overhaul README documentation
+feat(weighing): Add vegetable type requirement for rompes
 
-Provide detailed information about the project, setup, and usage.
+This ensures necessary data is captured and validated for rompes sessions.
 
 Changed files:
-- .gitignore: Ignore new README-related files
-- README.md: Rewrote content with detailed sections
-- README.md.backup: Added backup of old README
+- app/routes.py: Add validation for vegetable_type on 'rompes'
+- app/services/service.py: Handle vegetable_type in rompes session initiation
