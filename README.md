@@ -4,6 +4,8 @@ Backend API for Lokatani's IoT-based smart scales. This service acts as the cent
 
 Built with Flask, Gunicorn, and leveraging Firebase Authentication, Google Cloud Firestore, and Google Cloud Storage. Designed for serverless deployment on Google Cloud Run.
 
+For testing APIs, please visit this link : https://lokascale-frontend-web.vercel.app/
+
 ## ✨ Features
 
 *   **IoT Data Ingestion:** Receive weight data and device status updates from IoT scales via a dedicated, API-key-secured endpoint.
